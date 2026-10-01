@@ -6,4 +6,4 @@ Based on Shightrox/millennium-cs2-profile-stats, version 0.4.5, commit
 Repository: https://github.com/Shightrox/millennium-cs2-profile-stats
 
 The original Lua provider routes and Steam Community profile cards remain available.
-CS2 Player Tracker adds an on-demand desktop overlay report under its own plugin ID.
+CS2 Lobby Stats adds an on-demand desktop overlay report under its own plugin ID.

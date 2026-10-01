@@ -20,7 +20,7 @@ local function set_default(key, value)
 end
 
 local function on_load()
-    logger:info("Loading CS2 Player Tracker v" .. PLUGIN_VERSION .. " on Millennium " .. millennium.version())
+    logger:info("Loading CS2 Lobby Stats v" .. PLUGIN_VERSION .. " on Millennium " .. millennium.version())
     set_default("show_steam_details", true)
     set_default("expand_details", false)
     set_default("highlight_enabled", true)
@@ -28,7 +28,7 @@ local function on_load()
 end
 
 local function on_unload()
-    logger:info("Unloading CS2 Player Tracker")
+    logger:info("Unloading CS2 Lobby Stats")
 end
 
 return {

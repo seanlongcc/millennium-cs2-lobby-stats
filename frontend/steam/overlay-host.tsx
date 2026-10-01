@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { OverlayHost, SteamRuntime } from './runtime';
 import { reconcileOverlayHosts } from './hosts';
 import { nativeComponentErrors } from './compatibility';
-const styles = constSysfsExpr('cs2-player-tracker.css', { basePath: '../../static', encoding: 'utf8' }).content;
+const styles = constSysfsExpr('cs2-lobby-stats.css', { basePath: '../../static', encoding: 'utf8' }).content;
 export class NativeBoundary extends Component<{ children: ReactNode; onError: (message: string) => void }, { failed: boolean }> {
 	state = { failed: false };
 	static getDerivedStateFromError() {

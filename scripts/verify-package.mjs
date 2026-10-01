@@ -13,13 +13,13 @@ const required = [
 	'backend/report.lua',
 	'backend/steam.lua',
 	'static/cs2-profile-stats.css',
-	'static/cs2-player-tracker.css',
+	'static/cs2-lobby-stats.css',
 	'static/leetify-badge-white-small.png',
 ];
 try {
-	if (!process.argv[2] || path.basename(root) !== 'cs2-player-tracker') throw Error('Expected cs2-player-tracker directory.');
+	if (!process.argv[2] || path.basename(root) !== 'cs2-lobby-stats') throw Error('Expected cs2-lobby-stats directory.');
 	const manifest = JSON.parse(readFileSync(path.join(root, 'plugin.json'), 'utf8'));
-	if (manifest.name !== 'cs2-player-tracker' || manifest.version !== '0.1.0' || manifest.backendType !== 'lua') throw Error('Invalid plugin identity or version.');
+	if (manifest.name !== 'cs2-lobby-stats' || manifest.version !== '0.1.0' || manifest.backendType !== 'lua') throw Error('Invalid plugin identity or version.');
 	for (const file of required) {
 		const stat = lstatSync(path.join(root, file));
 		if (!stat.isFile() || stat.size === 0) throw Error(`Missing artifact: ${file}`);
@@ -36,7 +36,7 @@ try {
 		}
 	}
 	walk(root);
-	console.log('Package verified: cs2-player-tracker v0.1.0');
+	console.log('Package verified: cs2-lobby-stats v0.1.0');
 } catch (error) {
 	console.error(error.message);
 	process.exitCode = 1;

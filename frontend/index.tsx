@@ -97,7 +97,7 @@ export default definePlugin(() => {
 					</ModalRoot>,
 					host.window,
 					{
-						strTitle: 'CS2 Player Tracker',
+						strTitle: 'CS2 Lobby Stats',
 						bNeverPopOut: true,
 						fnOnClose: () => {
 							modal = undefined;
@@ -113,7 +113,7 @@ export default definePlugin(() => {
 		reportError,
 	);
 	return {
-		title: 'CS2 Player Tracker',
+		title: 'CS2 Lobby Stats',
 		icon: <IconsModule.Settings />,
 		content: (
 			<>

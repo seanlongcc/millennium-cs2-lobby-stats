@@ -14,15 +14,15 @@ function fixture() {
 	mkdirSync(scratch, { recursive: true });
 	const root = mkdtempSync(path.join(scratch, 'case-'));
 	temporary.push(root);
-	const plugin = path.join(root, 'source/cs2-player-tracker');
+	const plugin = path.join(root, 'source/cs2-lobby-stats');
 	mkdirSync(plugin, { recursive: true });
 	for (const name of ['plugin.json', 'LICENSE', 'README.md', 'UPSTREAM.md', 'backend', 'static', '.millennium'])
 		cpSync(path.join(repo, name), path.join(plugin, name), { recursive: true });
 	const steam = path.join(root, 'Steam'),
-		dest = path.join(steam, 'millennium/plugins/cs2-player-tracker');
+		dest = path.join(steam, 'millennium/plugins/cs2-lobby-stats');
 	mkdirSync(dest, { recursive: true });
 	writeFileSync(path.join(dest, 'old.txt'), 'keep old bytes');
-	writeFileSync(path.join(dest, 'plugin.json'), JSON.stringify({ name: 'cs2-player-tracker', version: '0.0.9' }));
+	writeFileSync(path.join(dest, 'plugin.json'), JSON.stringify({ name: 'cs2-lobby-stats', version: '0.0.9' }));
 	mkdirSync(path.join(steam, 'millennium/plugins/extendium'), { recursive: true });
 	writeFileSync(path.join(steam, 'millennium/plugins/extendium/keep.txt'), 'other plugin');
 	return { root, plugin, steam, dest };
@@ -101,15 +101,15 @@ it.skipIf(!windows)(
 			timeout: 60000,
 		});
 		expect(result.status, result.stderr).toBe(0);
-		const zip = path.join(repo, 'dist/cs2-player-tracker-v0.1.0.zip');
+		const zip = path.join(repo, 'dist/cs2-lobby-stats-v0.1.0.zip');
 		expect(existsSync(zip)).toBe(true);
 		const f = fixture(),
 			out = path.join(f.root, 'unpacked');
 		const script = path.join(f.root, 'extract.ps1');
 		writeFileSync(script, `Expand-Archive -LiteralPath '${native(zip).replace(/'/g, "''")}' -DestinationPath '${native(out).replace(/'/g, "''")}'\n`);
 		execFileSync(powershell, ['-NoProfile', '-File', native(script)], { timeout: 30000 });
-		expect(readdirSync(out)).toEqual(['cs2-player-tracker']);
-		expect(spawnSync(process.execPath, ['scripts/verify-package.mjs', path.join(out, 'cs2-player-tracker')], { encoding: 'utf8' }).status).toBe(0);
+		expect(readdirSync(out)).toEqual(['cs2-lobby-stats']);
+		expect(spawnSync(process.execPath, ['scripts/verify-package.mjs', path.join(out, 'cs2-lobby-stats')], { encoding: 'utf8' }).status).toBe(0);
 	},
 	90000,
 );

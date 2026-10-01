@@ -1,4 +1,4 @@
-# CS2 Player Tracker
+# CS2 Lobby Stats
 
 A Windows Steam Millennium plugin built on [Shightrox's CS2 Profile Stats](https://github.com/Shightrox/millennium-cs2-profile-stats). Open CS2's **Shift+Tab** overlay and select **Scan players** for an on-demand report of public player history.
 
@@ -12,21 +12,23 @@ A Windows Steam Millennium plugin built on [Shightrox's CS2 Profile Stats](https
 
 ## Install
 
-1. Extract `dist/cs2-player-tracker-v0.1.0.zip`. Keep the entire `cs2-player-tracker` folder, including `.millennium`.
+1. Extract `dist/cs2-lobby-stats-v0.1.0.zip`. Keep the entire `cs2-lobby-stats` folder, including `.millennium`.
 2. Run the installer from this repository in PowerShell, replacing the sample source path:
 
    ```powershell
-   .\scripts\install.ps1 -PluginPath 'C:\Downloads\cs2-player-tracker'
+   .\scripts\install.ps1 -PluginPath 'C:\Downloads\cs2-lobby-stats'
    ```
 
-   Default destination: `C:\Program Files (x86)\Steam\millennium\plugins\cs2-player-tracker`.
+   Default destination: `C:\Program Files (x86)\Steam\millennium\plugins\cs2-lobby-stats`.
    Add `-WhatIf` to inspect the destination without writing. Existing installations are backed up under `Steam\millennium\backups`. Other plugins are untouched. The installer does not stop Steam.
-3. Enable **CS2 Player Tracker** in Millennium's plugin settings. Restart Steam when ready if the new plugin is not listed or loaded.
+3. Enable **CS2 Lobby Stats** in Millennium's plugin settings. Restart Steam when ready if the new plugin is not listed or loaded.
 4. Start CS2, join a game, open Shift+Tab, then select **Scan players**.
 
 Alternatively, copy the extracted folder into Millennium's plugins directory. If the original **CS2 Profile Stats** plugin is enabled separately, disable that original plugin to avoid duplicate profile cards; this fork includes it.
 
-To roll back, close Steam, move the current `cs2-player-tracker` directory aside, and restore its saved backup with that exact folder name. Restart Steam.
+Previously installed **CS2 Player Tracker**? Disable it before enabling **CS2 Lobby Stats** to avoid duplicate scans and profile cards. The new plugin ID is `cs2-lobby-stats`; the installer leaves the old `cs2-player-tracker` installation and its settings in place. Re-enter any optional API key and preferred settings in the new plugin.
+
+To roll back, close Steam, move the current `cs2-lobby-stats` directory aside, and restore its saved backup with that exact folder name. Restart Steam.
 
 ## Report controls
 
@@ -61,7 +63,7 @@ pnpm build
 ```
 
 On Windows: `powershell -File scripts/package.ps1 -SkipBuild` after building.
-Validate an extracted release with `node scripts/verify-package.mjs <path>/cs2-player-tracker`.
+Validate an extracted release with `node scripts/verify-package.mjs <path>/cs2-lobby-stats`.
 The build excludes tests, docs, mockups and development dependencies.
 
 MIT license. Original work © Shightrox; upstream provenance is recorded in [UPSTREAM.md](UPSTREAM.md). Leetify data is attributed in the report and linked back to Leetify.

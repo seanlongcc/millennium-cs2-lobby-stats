@@ -25,7 +25,7 @@ local logger = require("logger")
 local millennium = require("millennium")
 
 local PLUGIN_VERSION = "0.1.0"
-local USER_AGENT = "cs2-player-tracker/" .. PLUGIN_VERSION
+local USER_AGENT = "cs2-lobby-stats/" .. PLUGIN_VERSION
 
 local function encode(payload)
     if retry_after then payload.retry_after = retry_after end

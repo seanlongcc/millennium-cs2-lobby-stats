@@ -24,9 +24,17 @@
     "vitest": "^4.1.11"
   },
   "type": "module",
-  "name": "cs2-player-tracker",
+  "name": "cs2-lobby-stats",
   "version": "0.1.0",
-  "description": "Useful CS2 statistics directly on Steam profile pages.",
+  "description": "CS2 lobby reports in the Steam overlay, plus Leetify, FACEIT and Steam profile stats.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seanlongcc/millennium-cs2-lobby-stats.git"
+  },
+  "homepage": "https://github.com/seanlongcc/millennium-cs2-lobby-stats#readme",
+  "bugs": {
+    "url": "https://github.com/seanlongcc/millennium-cs2-lobby-stats/issues"
+  },
   "main": "./frontend/index.tsx",
   "author": "Shightrox",
   "license": "MIT",

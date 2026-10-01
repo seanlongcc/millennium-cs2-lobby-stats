@@ -17,8 +17,8 @@ body:
       id: versions
       attributes:
           label: Versions
-          description: Include your Millennium and CS2 Profile Stats versions.
-          placeholder: Millennium 3.x, CS2 Profile Stats 0.4.3
+          description: Include your Millennium and CS2 Lobby Stats versions.
+          placeholder: Millennium 3.x, CS2 Lobby Stats 0.1.0
       validations:
           required: true
     - type: textarea

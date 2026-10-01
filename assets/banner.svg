@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title description">
-  <title id="title">CS2 Profile Stats for Millennium</title>
+  <title id="title">CS2 Lobby Stats for Millennium</title>
   <desc id="description">A dark blue banner with a crosshair emblem and example CS2 metrics.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
@@ -26,8 +26,8 @@
     <circle cx="76" cy="76" r="5" fill="#8cd7ff" stroke="none"/>
   </g>
   <g font-family="Inter, Segoe UI, Arial, sans-serif">
-    <text x="276" y="130" fill="#f2f5f7" font-size="54" font-weight="700" letter-spacing="1">CS2 PROFILE STATS</text>
-    <text x="279" y="177" fill="#8fa7b8" font-size="23">Leetify, FACEIT and Steam metrics — right on the profile.</text>
+    <text x="276" y="130" fill="#f2f5f7" font-size="54" font-weight="700" letter-spacing="1">CS2 LOBBY STATS</text>
+    <text x="279" y="177" fill="#8fa7b8" font-size="23">Leetify, FACEIT and Steam stats — in your overlay.</text>
     <text x="279" y="224" fill="#66c0f4" font-size="18" font-weight="600" letter-spacing="2">FOR MILLENNIUM</text>
   </g>
   <g transform="translate(970 74)" font-family="Inter, Segoe UI, Arial, sans-serif">

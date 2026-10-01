@@ -1,5 +1,6 @@
-# CS2 Player Tracker 0.1.0
+# CS2 Lobby Stats 0.1.0
 
+- Renames the project from CS2 Player Tracker to CS2 Lobby Stats, with plugin ID `cs2-lobby-stats` and repository `millennium-cs2-lobby-stats`.
 - Adds native Steam overlay reports, manual roster supplementation, Leetify-first review and provider tabs.
 - Adds bounded provider requests, privacy checks, explainable recent K/D flags and Windows installation with rollback.
 - Forks upstream 0.4.5; original profile cards remain available.

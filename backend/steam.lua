@@ -12,12 +12,12 @@ function M.request(url,deadline)
  local remaining=math.floor(deadline-os.time())
  if remaining<=0 then return nil,'Request timed out.' end
  -- Redirects are handled explicitly so an approved host cannot redirect elsewhere.
- local response,err=http.get(url,{timeout=math.min(10,remaining),follow_redirects=false,verify_ssl=true,user_agent='cs2-player-tracker/0.1.0'})
+ local response,err=http.get(url,{timeout=math.min(10,remaining),follow_redirects=false,verify_ssl=true,user_agent='cs2-lobby-stats/0.1.0'})
  if response and response.status>=300 and response.status<400 then
   local location=(response.headers or {}).location or (response.headers or {}).Location
   if type(location)~='string' or not location:match('^https://steamcommunity%.com/profiles/%d+/%?xml=1$') then return nil,'Unexpected redirect.' end
   remaining=math.floor(deadline-os.time());if remaining<=0 then return nil,'Request timed out.' end
-  response,err=http.get(location,{timeout=math.min(10,remaining),follow_redirects=false,verify_ssl=true,user_agent='cs2-player-tracker/0.1.0'})
+  response,err=http.get(location,{timeout=math.min(10,remaining),follow_redirects=false,verify_ssl=true,user_agent='cs2-lobby-stats/0.1.0'})
  end
  return response,err
 end

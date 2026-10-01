@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve CS2 Profile Stats.
+Thanks for helping improve CS2 Lobby Stats.
 
 ## Before opening an issue
 

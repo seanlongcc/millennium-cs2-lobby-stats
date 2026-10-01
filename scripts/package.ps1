@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $manifest = Get-Content -LiteralPath (Join-Path $repositoryRoot 'plugin.json') -Raw | ConvertFrom-Json
 $package = Get-Content -LiteralPath (Join-Path $repositoryRoot 'package.json') -Raw | ConvertFrom-Json
-if ($manifest.name -ne 'cs2-player-tracker' -or $manifest.version -ne '0.1.0' -or $manifest.version -ne $package.version) { throw 'Plugin identity/version mismatch.' }
+if ($manifest.name -ne 'cs2-lobby-stats' -or $manifest.version -ne '0.1.0' -or $manifest.version -ne $package.version) { throw 'Plugin identity/version mismatch.' }
 if (-not $SkipBuild) {
     Push-Location $repositoryRoot
     try {
@@ -18,8 +18,8 @@ if (-not $SkipBuild) {
 }
 $dist = Join-Path $repositoryRoot 'dist'
 $stage = Join-Path $dist ('.staging-' + [Guid]::NewGuid().ToString('N'))
-$plugin = Join-Path $stage 'cs2-player-tracker'
-$archive = Join-Path $dist 'cs2-player-tracker-v0.1.0.zip'
+$plugin = Join-Path $stage 'cs2-lobby-stats'
+$archive = Join-Path $dist 'cs2-lobby-stats-v0.1.0.zip'
 try {
     New-Item -ItemType Directory -Path (Join-Path $plugin '.millennium\Dist') -Force | Out-Null
     foreach ($file in @('plugin.json','README.md','UPSTREAM.md','CHANGELOG.md','LICENSE')) { Copy-Item -LiteralPath (Join-Path $repositoryRoot $file) -Destination $plugin }
