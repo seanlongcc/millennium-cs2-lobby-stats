@@ -25,13 +25,14 @@ export function parseManualRoster(text:string):{steamIds:SteamId[];vanityNames:s
  return {steamIds:[...ids],vanityNames:[...names.values()],errors};
 }
 export async function resolveManualRoster(text:string,resolveVanity:(name:string)=>Promise<SteamId>):Promise<{players:PlayerIdentity[];errors:string[]}> {
- const parsed=parseManualRoster(text),ids=new Set(parsed.steamIds);let index=0;
+ const parsed=parseManualRoster(text),ids=new Set(parsed.steamIds);let index=0;let stopped=false;
  await Promise.all([0,1].map(async()=>{
-  while(index<parsed.vanityNames.length) {
+  while(!stopped&&index<parsed.vanityNames.length) {
    const name=parsed.vanityNames[index++];
    try {const id=await withDeadline(resolveVanity(name),10000);if(!validSteamId(id)) throw Error('Invalid SteamID.');ids.add(id);}
-   catch {parsed.errors.push(`Could not resolve: ${name}`);}
+   catch(error) {parsed.errors.push(`Could not resolve: ${name}`);if(error instanceof Error && /timed out/.test(error.message))stopped=true;}
   }
  }));
+ for(const name of parsed.vanityNames.slice(index)) parsed.errors.push(`Not resolved: ${name}`);
  return {players:[...ids].map(id=>identity(id,'manual')),errors:parsed.errors};
 }

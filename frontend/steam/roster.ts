@@ -18,13 +18,19 @@ export function normalizeCoplay(raw:unknown,selfId:SteamId|null,now:number):Rost
  if(players.size>MAX_PLAYERS) return emptyRoster(now,'error','Report limit: 128 players.');
  return {...emptyRoster(now,players.size?'ready':'empty'),players:[...players.values()],rejectedCount};
 }
-export async function withDeadline<T>(promise:Promise<T>,ms:number):Promise<T> {
+export async function withDeadline<T>(promise:Promise<T>,ms:number,signal?:AbortSignal):Promise<T> {
  let timer:ReturnType<typeof setTimeout>|undefined;
- try { return await Promise.race([promise,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('Request timed out.')),ms);})]); }
- finally {clearTimeout(timer);}
+ let onAbort:(()=>void)|undefined;
+ try { return await Promise.race([promise,new Promise<never>((_,reject)=>{
+  onAbort=()=>{clearTimeout(timer);reject(new Error('Request canceled.'));};
+  timer=setTimeout(()=>reject(new Error('Request timed out.')),ms);
+  signal?.addEventListener('abort',onAbort,{once:true});
+  if(signal?.aborted)onAbort();
+ })]); }
+ finally {clearTimeout(timer);if(onAbort)signal?.removeEventListener('abort',onAbort);}
 }
-export async function captureRoster(runtime:SteamRuntime,now:()=>number):Promise<RosterSnapshot> {
- try {return normalizeCoplay(await withDeadline(runtime.readCoplay(),5000),runtime.currentUserId(),now());}
+export async function captureRoster(runtime:SteamRuntime,now:()=>number,signal?:AbortSignal):Promise<RosterSnapshot> {
+ try {return normalizeCoplay(await withDeadline(runtime.readCoplay(),5000,signal),runtime.currentUserId(),now());}
  catch(error) {const message=error instanceof Error?error.message:'Could not read current players.';return emptyRoster(now(),/unavailable on this Steam version/.test(message)?'unavailable':'error',message);}
 }
 export function groupRoster(players:PlayerIdentity[]):Array<{team:TeamGroup;players:PlayerIdentity[]}> {

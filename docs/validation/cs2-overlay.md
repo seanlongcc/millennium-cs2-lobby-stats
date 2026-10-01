@@ -16,6 +16,9 @@ by the design. Layout uses Focusable and Dialog components.
 DOM exception: one empty `div` per overlay host is the React mount container.
 Steam exports no plugin root registration container. It has no product content,
 controls, or cloned Steam styles. A `style` node supplies scoped layout only.
+An `img` inside a native source button displays the required Leetify attribution
+badge. The client 5.8.5 component catalog has no standalone image component;
+DialogButtonSecondary provides its action/focus behavior.
 
 The existing upstream Community card runs in the separate webkit context, where
 @steambrew/client React components are unavailable. Its existing HTML renderer and
@@ -43,3 +46,10 @@ CSS are preserved for that context only; they are not reused in the new report.
 | Community server | Untested | — | Requires gameplay session |
 
 Automated checks do not prove native Steam compatibility or complete discovery.
+
+## Installed environment observation, 2026-09-30
+
+PowerShell FileVersionInfo reports Millennium **v3.5.0** and Steam executable
+**10.96.30.42**. Steam was running; CS2 was not. No active game was interrupted.
+The automatic team source remains unavailable. All gameplay-mode matrix entries
+remain untested until a user-started session is available.

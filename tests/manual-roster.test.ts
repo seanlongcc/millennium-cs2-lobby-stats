@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { parseManualRoster, resolveManualRoster } from '../frontend/steam/manual-roster';
 it('deduplicates all supported ID forms with lossless conversion',()=>{
  expect(parseManualRoster('[U:1:1]\nSTEAM_1:1:0\nhttps://steamcommunity.com/profiles/76561197960265729').steamIds).toEqual(['76561197960265729']);
@@ -15,4 +15,10 @@ it('deduplicates vanity names, caps resolver concurrency, validates results and 
  const r=await resolveManualRoster('https://steamcommunity.com/id/one https://steamcommunity.com/id/one https://steamcommunity.com/id/two https://steamcommunity.com/id/bad',async name=>{names.push(name);active++;max=Math.max(max,active);await Promise.resolve();active--;if(name==='bad')throw Error('Not found');return name==='one'?'76561197960265729':'76561197960265730';});
  expect(max).toBeLessThanOrEqual(2);expect(names).toEqual(['one','two','bad']);expect(r.players).toHaveLength(2);expect(r.players.every(p=>p.team==='unknown'&&p.origin==='manual')).toBe(true);expect(r.errors).toHaveLength(1);
  expect((await resolveManualRoster('https://steamcommunity.com/id/nope',async()=> '123')).errors).toHaveLength(1);
+});
+
+it('does not launch replacements while timed-out vanity requests remain unresolved',async()=>{
+ vi.useFakeTimers();const resolve=vi.fn(()=>new Promise<string>(()=>{}));
+ const pending=resolveManualRoster('https://steamcommunity.com/id/one https://steamcommunity.com/id/two https://steamcommunity.com/id/three',resolve);
+ await vi.advanceTimersByTimeAsync(10000);expect(resolve).toHaveBeenCalledTimes(2);expect((await pending).errors).toHaveLength(3);vi.useRealTimers();
 });

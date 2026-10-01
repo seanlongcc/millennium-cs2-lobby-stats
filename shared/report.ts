@@ -47,6 +47,8 @@ export type ReportRow = {
   providers: Record<Provider, ProviderResult<Partial<Metrics>>>;
 };
 export type ReportSnapshot = {
+  inputErrors?: string[];
+  message?: string;
   id: number; roster: RosterSnapshot; rows: ReportRow[];
   state: 'idle' | 'loading' | 'complete' | 'canceled' | 'stale' | 'error';
 };

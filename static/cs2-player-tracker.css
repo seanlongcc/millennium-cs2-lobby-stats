@@ -1,0 +1,13 @@
+.cs2-tracker-report { width: min(1120px, calc(100vw - 80px)); max-height: calc(100vh - 80px); display: flex; flex-direction: column; gap: 8px; }
+.cs2-tracker-actions, .cs2-tracker-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.cs2-tracker-columns { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; min-height: 0; overflow: auto; }
+.cs2-tracker-roster, .cs2-tracker-profile { min-width: 0; overflow: auto; max-height: calc(100vh - 330px); }
+.cs2-tracker-player { padding-block: 6px; }
+.cs2-tracker-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+.cs2-tracker-flag { background-color: oklch(0.76 0.1 80 / 0.1); }
+.cs2-tracker-manual { display: flex; align-items: end; gap: 12px; }
+@media (max-width: 850px) {
+ .cs2-tracker-report { width: calc(100vw - 48px); }
+ .cs2-tracker-columns { grid-template-columns: minmax(0, 1fr); }
+ .cs2-tracker-roster, .cs2-tracker-profile { max-height: none; overflow: visible; }
+}
