@@ -4,8 +4,8 @@ local logger = require("logger")
 local millennium = require("millennium")
 local utils = require("utils")
 
-local PLUGIN_VERSION = "0.4.5"
-local USER_AGENT = "millennium-cs2-profile-stats/" .. PLUGIN_VERSION
+local PLUGIN_VERSION = "0.1.0"
+local USER_AGENT = "cs2-player-tracker/" .. PLUGIN_VERSION
 
 local function encode(payload)
     local ok, result = pcall(cjson.encode, payload)
@@ -676,14 +676,14 @@ local function set_default(key, value)
 end
 
 local function on_load()
-    logger:info("Loading CS2 Profile Stats v" .. PLUGIN_VERSION .. " on Millennium " .. millennium.version())
+    logger:info("Loading CS2 Player Tracker v" .. PLUGIN_VERSION .. " on Millennium " .. millennium.version())
     set_default("show_steam_details", true)
     set_default("expand_details", false)
     millennium.ready()
 end
 
 local function on_unload()
-    logger:info("Unloading CS2 Profile Stats")
+    logger:info("Unloading CS2 Player Tracker")
 end
 
 return {

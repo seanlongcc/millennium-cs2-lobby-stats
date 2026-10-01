@@ -1,4 +1,6 @@
-import { definePlugin, Field, IconsModule, TextField, ToggleField, usePluginConfig } from '@steambrew/client';
+import { createSteamRuntime } from './steam/runtime';
+import { startOverlayHosts } from './steam/overlay-host';
+import { definePlugin, DialogBody, DialogBodyText, ModalRoot, Router, showModal, Field, IconsModule, TextField, ToggleField, usePluginConfig } from '@steambrew/client';
 
 const SettingsContent = () => {
 	const [leetifyApiKey, setLeetifyApiKey] = usePluginConfig<string>('leetify_api_key');
@@ -6,7 +8,7 @@ const SettingsContent = () => {
 	const [expandDetails, setExpandDetails] = usePluginConfig<boolean>('expand_details');
 
 	return (
-		<div style={{ padding: '16px' }}>
+		<DialogBody>
 			<Field
 				label="Leetify API key"
 				description="Optional. Public requests work without a key, while a personal key provides better rate limits."
@@ -38,12 +40,19 @@ const SettingsContent = () => {
 				onChange={(checked) => void setExpandDetails(checked)}
 				bottomSeparator="none"
 			/>
-		</div>
+		</DialogBody>
 	);
 };
 
-export default definePlugin(() => ({
-	title: 'CS2 Profile Stats',
+export default definePlugin(() => {
+ const runtime = createSteamRuntime({SteamClient, App: (window as any).App, Router});
+ const stop = startOverlayHosts(runtime, host => {
+  showModal(<ModalRoot><DialogBodyText>Report tools are loading.</DialogBodyText></ModalRoot>, host.window, {strTitle:'CS2 Player Tracker',bNeverPopOut:true});
+ });
+ return ({
+	title: 'CS2 Player Tracker',
 	icon: <IconsModule.Settings />,
 	content: <SettingsContent />,
-}));
+ onDismount: stop,
+});
+});

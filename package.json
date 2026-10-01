@@ -1,29 +1,37 @@
 {
-	"scripts": {
-		"dev": "millennium-ttc --build dev",
-		"build": "millennium-ttc --build prod",
-		"typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p webkit/tsconfig.json"
-	},
-	"devDependencies": {
-		"@steambrew/api": "^5.8.4",
-		"@steambrew/client": "^5.8.4",
-		"@steambrew/ttc": "^3.2.6",
-		"@steambrew/webkit": "^5.8.4",
-		"@types/react": "19.1.1",
-		"@types/react-dom": "19.1.1",
-		"typescript": "5.9.3"
-	},
-	"type": "module",
-	"name": "millennium-cs2-profile-stats",
-	"version": "0.4.5",
-	"description": "Useful CS2 statistics directly on Steam profile pages.",
-	"main": "./frontend/index.tsx",
-	"author": "Shightrox",
-	"license": "MIT",
-	"packageManager": "pnpm@10.33.1",
-	"pnpm": {
-		"overrides": {
-			"typescript": "5.9.3"
-		}
-	}
+  "scripts": {
+    "dev": "millennium-ttc --build dev",
+    "build": "millennium-ttc --build prod",
+    "typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p webkit/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck:tests": "tsc --noEmit -p tsconfig.test.json"
+  },
+  "devDependencies": {
+    "@steambrew/api": "^5.8.4",
+    "@steambrew/client": "^5.8.4",
+    "@steambrew/ttc": "^3.2.6",
+    "@steambrew/webkit": "^5.8.4",
+    "@types/node": "^24.19.0",
+    "@types/react": "19.1.1",
+    "@types/react-dom": "19.1.1",
+    "jsdom": "^27.4.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "type": "module",
+  "name": "cs2-player-tracker",
+  "version": "0.1.0",
+  "description": "Useful CS2 statistics directly on Steam profile pages.",
+  "main": "./frontend/index.tsx",
+  "author": "Shightrox",
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.1",
+  "pnpm": {
+    "overrides": {
+      "typescript": "5.9.3"
+    }
+  }
 }

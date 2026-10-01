@@ -1,10 +1,14 @@
 {
-	"$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
-	"name": "cs2-profile-stats",
-	"common_name": "CS2 Profile Stats",
-	"description": "Displays useful Leetify, FACEIT, and Steam CS2 statistics directly on Steam profiles.",
-	"version": "0.4.5",
-	"backendType": "lua",
-	"webkitApiVersion": "2.0.0",
-	"include": ["static", "README.md", "LICENSE"]
+  "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/system/plugin-schema.json",
+  "name": "cs2-player-tracker",
+  "common_name": "CS2 Player Tracker",
+  "description": "Current CS2 player reports in the Steam overlay, plus Leetify, FACEIT and Steam profile stats.",
+  "version": "0.1.0",
+  "backendType": "lua",
+  "webkitApiVersion": "2.0.0",
+  "include": [
+    "static",
+    "README.md",
+    "LICENSE"
+  ]
 }

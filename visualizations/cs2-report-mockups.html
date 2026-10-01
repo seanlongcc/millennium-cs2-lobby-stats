@@ -1,0 +1,236 @@
+<!-- Interactive visual study. Production must use actual Steam Dialog*, Field,
+     Tabs, TextField and button exports. This HTML/CSS is not plugin source.
+     All player values and known team assignments below are synthetic.
+     No numeric Leetify benchmark or percentile is invented. -->
+<style>
+#cs2-report-mockups .cs2 {
+  --cs-bg:oklch(20% .009 260);--cs-panel:oklch(26% .014 260);--cs-raised:oklch(30% .017 260);
+  --cs-hover:oklch(36% .024 260);--cs-line:oklch(36% .016 260);--cs-text:oklch(91% .005 250);
+  --cs-muted:oklch(76% .01 250);--cs-action:oklch(39% .024 260);--cs-blue:oklch(78% .10 240);
+  --cs-amber:oklch(83% .13 78);--cs-selected:oklch(34% .04 248);
+  color-scheme:dark;color:var(--cs-text);background:var(--cs-bg);font:14px/1.45 'Motiva Sans',Arial,Helvetica,sans-serif;
+  padding-bottom:18px;position:relative;
+}
+#cs2-report-mockups .cs2 *{box-sizing:border-box;min-width:0}
+#cs2-report-mockups .cs2 [hidden]{display:none!important}
+#cs2-report-mockups .cs2 button,#cs2-report-mockups .cs2 input{font:inherit;color:inherit}
+#cs2-report-mockups .cs2 button{border:0;background:none;text-align:left}
+#cs2-report-mockups .cs2 a{color:var(--cs-text);text-underline-offset:3px}
+#cs2-report-mockups .cs2 h1,#cs2-report-mockups .cs2 h2,#cs2-report-mockups .cs2 p{margin:0}
+#cs2-report-mockups .cs2 h1{font-size:22px;line-height:28px;font-weight:700}
+#cs2-report-mockups .cs2 h2{font-size:20px;line-height:26px;font-weight:700}
+#cs2-report-mockups .cs2 .minor{font-size:11px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .muted{color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .number{font-variant-numeric:tabular-nums;white-space:nowrap}
+#cs2-report-mockups .cs2 .hot{color:var(--cs-amber)}
+#cs2-report-mockups .cs2 .eyebrow{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .steam-chrome{min-height:54px;display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--cs-line);gap:12px;flex-wrap:wrap}
+#cs2-report-mockups .cs2 .steam-game{display:flex;gap:10px;align-items:center;font-size:12px;font-weight:600;flex-wrap:wrap}
+#cs2-report-mockups .cs2 .game-logo{font-style:italic;font-size:18px;color:var(--cs-amber)}
+#cs2-report-mockups .cs2 .sample{font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:var(--cs-muted);border:1px solid var(--cs-line);padding:2px 6px}
+#cs2-report-mockups .cs2 .steam-right{font-size:12px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .report{margin:20px 22px 0;background:var(--cs-panel);border:1px solid var(--cs-line);border-radius:2px}
+#cs2-report-mockups .cs2 .titlebar{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:20px;flex-wrap:wrap}
+#cs2-report-mockups .cs2 .titlebar .eyebrow{margin-bottom:7px}
+#cs2-report-mockups .cs2 .subtitle{font-size:12px;color:var(--cs-muted);margin-top:7px}
+#cs2-report-mockups .cs2 .action-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#cs2-report-mockups .cs2 .action{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:2px;min-height:32px;padding:4px 12px;background:var(--cs-action);font-size:14px;text-decoration:none}
+#cs2-report-mockups .cs2 .action:hover{background:var(--cs-hover)}
+#cs2-report-mockups .cs2 .action.primary{background:linear-gradient(to right,oklch(76% .135 235),oklch(46% .2 265) 60%);background-size:330% 100%;background-position:25%}
+#cs2-report-mockups .cs2 .icon-action{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .coverage{border-top:1px solid var(--cs-line);border-bottom:1px solid var(--cs-line);padding:10px 20px;display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--cs-muted);background:var(--cs-bg)}
+#cs2-report-mockups .cs2 .coverage svg{flex-shrink:0}
+#cs2-report-mockups .cs2 .coverage strong{font-weight:500;color:var(--cs-text)}
+#cs2-report-mockups .cs2 .split{display:grid;grid-template-columns:minmax(0,1fr) 358px;align-items:stretch}
+#cs2-report-mockups .cs2 .roster-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;gap:10px;font-size:11px;color:var(--cs-muted);flex-wrap:wrap}
+#cs2-report-mockups .cs2 .roster-head strong{font-size:12px;color:var(--cs-text);font-weight:500}
+#cs2-report-mockups .cs2 .team-heading{display:flex;align-items:center;justify-content:space-between;padding:12px 15px 8px;border-top:1px solid var(--cs-line);background:var(--cs-bg);gap:8px}
+#cs2-report-mockups .cs2 .team-heading h3{margin:0;font-size:12px;font-weight:600}
+#cs2-report-mockups .cs2 .team-heading .team-note{font-size:11px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .roster-line{display:grid;grid-template-columns:minmax(105px,1fr) 76px 39px 64px 53px;gap:10px;align-items:center;padding:12px 15px;border-top:1px solid var(--cs-line);width:100%;border-radius:0}
+#cs2-report-mockups .cs2 .roster-line:hover{background:var(--cs-hover)}
+#cs2-report-mockups .cs2 .roster-line.selected{background:var(--cs-selected)}
+#cs2-report-mockups .cs2 .roster-line.header{padding:5px 15px 8px;min-height:28px;font-size:11px;color:var(--cs-muted);background:var(--cs-bg);border-top:0}
+#cs2-report-mockups .cs2 .who{display:flex;align-items:center;gap:10px}
+#cs2-report-mockups .cs2 .who-text{flex:1}
+#cs2-report-mockups .cs2 .player-name{font-size:13px;font-weight:600;overflow-wrap:anywhere;display:block}
+#cs2-report-mockups .cs2 .avatar{width:29px;height:29px;display:flex;align-items:center;justify-content:center;background:var(--cs-line);font-size:12px;font-weight:600;flex-shrink:0}
+#cs2-report-mockups .cs2 .player-state{font-size:11px;color:var(--cs-muted);display:flex;align-items:center;gap:4px;margin-top:3px}
+#cs2-report-mockups .cs2 .player-state.warn{color:var(--cs-amber)}
+#cs2-report-mockups .cs2 .player-state svg{width:11px!important;height:11px!important;flex-shrink:0}
+#cs2-report-mockups .cs2 .metric-cell{text-align:right;line-height:1.3}
+#cs2-report-mockups .cs2 .metric-cell small{display:block;font-size:11px;color:var(--cs-muted);margin-top:4px}
+#cs2-report-mockups .cs2 .inspector{background:var(--cs-raised);border-left:1px solid var(--cs-line);padding:20px 18px}
+#cs2-report-mockups .cs2 .inspector>.who{margin:10px 0 16px}
+#cs2-report-mockups .cs2 .inspector>.who .avatar{width:40px;height:40px;font-size:18px}
+#cs2-report-mockups .cs2 .provider-tabs{display:flex;gap:0;border-bottom:1px solid var(--cs-line);margin-bottom:16px;flex-wrap:wrap}
+#cs2-report-mockups .cs2 .provider-tab{padding:10px 9px;font-size:12px;color:var(--cs-muted);border-bottom:2px solid transparent}
+#cs2-report-mockups .cs2 .provider-tab[aria-selected=true]{color:var(--cs-text);border-bottom-color:var(--cs-text)}
+#cs2-report-mockups .cs2 .provider-tab:hover{background:var(--cs-hover)}
+#cs2-report-mockups .cs2 .source-context{font-size:11px;color:var(--cs-muted);margin-bottom:10px}
+#cs2-report-mockups .cs2 .facts{margin:0}
+#cs2-report-mockups .cs2 .facts>div{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--cs-line)}
+#cs2-report-mockups .cs2 .facts dt{font-size:12px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .facts dd{font-size:14px;margin:0;font-variant-numeric:tabular-nums}
+#cs2-report-mockups .cs2 .review-note{padding:15px 0 0}
+#cs2-report-mockups .cs2 .review-title{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--cs-amber);margin-bottom:7px}
+#cs2-report-mockups .cs2 .review-note p{font-size:12px;margin-top:5px}
+#cs2-report-mockups .cs2 .data-actions{display:flex;align-items:center;gap:18px;margin-top:14px;flex-wrap:wrap}
+#cs2-report-mockups .cs2 .data-actions .profile-link{margin-top:0}
+#cs2-report-mockups .cs2 .data-toggle{font-size:12px;color:var(--cs-muted);padding:4px 0;text-decoration:underline;text-underline-offset:3px}
+#cs2-report-mockups .cs2 .data-notes{margin-top:12px;font-size:11px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .data-notes p{margin:5px 0}
+#cs2-report-mockups .cs2 .profile-link{display:inline-flex;align-items:center;gap:5px;font-size:12px;margin-top:12px}
+#cs2-report-mockups .cs2 .external-links{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 12px;font-size:12px}
+#cs2-report-mockups .cs2 .external-links a{display:inline-flex;align-items:center;gap:4px}
+#cs2-report-mockups .cs2 .external-links svg{width:12px!important;height:12px!important}
+#cs2-report-mockups .cs2 .provider-empty{padding:12px 0 28px;min-height:250px}
+#cs2-report-mockups .cs2 .provider-empty h3{font-size:15px;margin:6px 0 9px}
+#cs2-report-mockups .cs2 .provider-empty p{font-size:12px;color:var(--cs-muted);margin-bottom:15px}
+#cs2-report-mockups .cs2 .report-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--cs-line);font-size:11px;color:var(--cs-muted);background:var(--cs-bg)}
+#cs2-report-mockups .cs2 .provided{display:flex;gap:5px;align-items:center;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .provided b{font-weight:600;color:var(--cs-text)}
+#cs2-report-mockups .cs2 .dock{display:flex;gap:6px;justify-content:center;align-items:center;margin:15px auto 0;padding:8px;width:max-content;max-width:100%;background:var(--cs-panel);border:1px solid var(--cs-line);border-radius:4px;color:var(--cs-muted);flex-wrap:wrap}
+#cs2-report-mockups .cs2 .dock-item{display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11px}
+#cs2-report-mockups .cs2 .dock-item.chosen{background:var(--cs-raised);color:var(--cs-text)}
+#cs2-report-mockups .cs2 .manual{padding:16px 20px;background:var(--cs-raised);border-bottom:1px solid var(--cs-line)}
+#cs2-report-mockups .cs2 .manual label{font-size:12px;display:block;margin-bottom:7px}
+#cs2-report-mockups .cs2 .manual input{width:100%;min-height:40px;border:1px solid var(--cs-line);border-radius:2px;background:var(--cs-bg);padding:9px;font-size:14px}
+#cs2-report-mockups .cs2 .manual .action-row{margin-top:9px}
+#cs2-report-mockups .cs2 .feedback{margin-top:8px;font-size:11px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2 .progress-line{padding:10px 20px;border-bottom:1px solid var(--cs-line);display:flex;justify-content:space-between;align-items:center;color:var(--cs-muted);font-size:12px}
+#cs2-report-mockups .cs2 .empty{padding:60px 22px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:15px;min-height:350px}
+#cs2-report-mockups .cs2 .empty p{max-width:45ch;font-size:12px;color:var(--cs-muted)}
+#cs2-report-mockups .cs2.density-compact .roster-line:not(.header){padding-top:8px;padding-bottom:8px}
+@media(max-width:850px){
+#cs2-report-mockups .cs2 .split{grid-template-columns:1fr}
+#cs2-report-mockups .cs2 .inspector{border-left:0;border-top:1px solid var(--cs-line)}
+#cs2-report-mockups .cs2 .report{margin:14px 14px 0}
+#cs2-report-mockups .cs2 .roster-line{grid-template-columns:minmax(95px,1fr) 83px 45px 70px 61px}
+}
+@media(max-width:480px){
+#cs2-report-mockups .cs2 .report{margin:10px 8px 0}
+#cs2-report-mockups .cs2 .steam-chrome{padding:12px}
+#cs2-report-mockups .cs2 .steam-right{display:none}
+#cs2-report-mockups .cs2 .titlebar{padding:14px}
+#cs2-report-mockups .cs2 .coverage{padding:10px 12px}
+#cs2-report-mockups .cs2 .roster-line{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:11px 9px}
+#cs2-report-mockups .cs2 .roster-line>.who,#cs2-report-mockups .cs2 .roster-line.header>span:first-child,#cs2-report-mockups .cs2 .manual-group .roster-line>span:first-child{grid-column:1/-1}
+#cs2-report-mockups .cs2 .roster-line.header{padding:6px 9px}
+#cs2-report-mockups .cs2 .roster-line .avatar{display:none}
+#cs2-report-mockups .cs2 .team-heading{padding:12px 9px 8px;flex-wrap:wrap}
+#cs2-report-mockups .cs2 .inspector{padding:18px 12px}
+#cs2-report-mockups .cs2 .dock{gap:0;padding:5px}
+#cs2-report-mockups .cs2 .dock-item{padding:5px}
+#cs2-report-mockups .cs2 .manual input{font-size:16px}
+}
+@media(pointer:coarse){#cs2-report-mockups .cs2 .action,#cs2-report-mockups .cs2 .provider-tab,#cs2-report-mockups .cs2 .icon-action{min-height:44px}}
+</style>
+<div id="cs2-report-mockups" aria-label="Quick review with Leetify and team groups">
+  <div class="cs2" id="cs2-quick" aria-label="Quick review report"></div>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('cs2-report-mockups');
+  const el = root.querySelector('#cs2-quick');
+  const providers = ['Leetify','CSStats','FACEIT','Steam'];
+  const people = [
+    {name:'vanta',team:'opponents',rating:8.64,aim:95,utility:48,positioning:72,ttd:384,preaim:5.2,accuracy:46,strafing:94,kd:2.12,n:32,premier:18420,total:286,fkd:1.93,hs:74,win:64,matches:118,level:8,elo:1724,hours:386},
+    {name:'sable',team:'opponents',rating:4.28,aim:82,utility:61,positioning:69,ttd:462,preaim:7.1,accuracy:39,strafing:91,kd:1.64,n:24,premier:21060,total:694,fkd:1.91,hs:62,win:59,matches:240,level:9,elo:1952,hours:1620},
+    {name:'north',team:'opponents',rating:2.16,aim:67,utility:55,positioning:64,ttd:512,preaim:8.4,accuracy:35,strafing:89,kd:1.21,n:30,premier:19240,total:1432,fkd:1.16,hs:52,win:54,matches:864,level:8,elo:1792,hours:3240},
+    {name:'kiln',team:'opponents',rating:0.82,aim:58,utility:62,positioning:56,ttd:566,preaim:10.1,accuracy:32,strafing:87,kd:1.08,n:30,premier:17890,total:874,fkd:1.10,hs:49,win:51,matches:412,level:7,elo:1628,hours:2140},
+    {name:'moss',team:'opponents',rating:-1.24,aim:46,utility:41,positioning:50,ttd:624,preaim:12.4,accuracy:29,strafing:82,kd:0.94,n:28,premier:16410,total:436,fkd:0.98,hs:43,win:49,matches:276,level:6,elo:1438,hours:1480},
+    {name:'you',team:'yours',self:true,rating:1.78,aim:64,utility:59,positioning:61,ttd:534,preaim:9.2,accuracy:34,strafing:88,kd:1.14,n:30,premier:18620,total:1158,fkd:1.09,hs:48,win:53,matches:624,level:7,elo:1662,hours:2680},
+    {name:'orbit',team:'yours',rating:0.64,aim:57,utility:53,positioning:58,ttd:561,preaim:10.4,accuracy:32,strafing:87,kd:1.07,n:30,premier:18110,total:732,fkd:1.04,hs:56,win:52,matches:390,level:7,elo:1584,hours:1940},
+    {name:'cedar',team:'yours',rating:-0.48,aim:51,utility:48,positioning:54,ttd:594,preaim:11.8,accuracy:30,strafing:84,kd:0.98,n:30,premier:17340,total:350,fkd:1.02,hs:46,win:50,matches:187,level:6,elo:1480,hours:1120},
+    {name:'hush',team:'yours',rating:0.32,aim:54,utility:46,positioning:55,ttd:578,preaim:10.9,accuracy:31,strafing:86,kd:1.02,n:24,premier:16980,total:260,fkd:null,hs:null,win:null,matches:null,level:null,elo:null,hours:null,privateHours:true},
+    {name:'cloudless',team:'yours',rating:null,aim:null,utility:null,positioning:null,ttd:null,preaim:null,accuracy:null,strafing:null,kd:null,n:null,premier:null,total:null,fkd:null,hs:null,win:null,matches:null,level:null,elo:null,hours:null}
+  ];
+  const saved = window.openai?.widgetState?.privateContent;
+  const s = {selected:0,provider:'Leetify',manual:false,addOpen:false,feedback:'',loading:false,closed:false,updated:false,empty:false,dataDetails:false,density:'Comfortable',teams:'Teams known (sample)'};
+  function restore(data){
+    if(!data||data.version!==2)return;
+    if(Number.isInteger(data.selected)&&data.selected>=0&&data.selected<people.length)s.selected=data.selected;
+    if(providers.includes(data.provider))s.provider=data.provider;
+    if(['Teams known (sample)','Teams unavailable','Free-for-all'].includes(data.teams))s.teams=data.teams;
+  }
+  restore(saved);
+  let timer;
+  const icon = name => `<i data-lucide="${name}" aria-hidden="true"></i>`;
+  const fmt = (v,d=0) => v==null?'Unavailable':v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+  const signed = v => v==null?'Unavailable':`${v>0?'+':''}${fmt(v,2)}`;
+  const flag = p => p.kd!=null&&p.n>=20&&p.kd>=2;
+  const groupName = p => s.teams==='Free-for-all'?'Free-for-all':s.teams==='Teams unavailable'?'Team unknown':p.team==='yours'?'Your team':'Opponents';
+  const status = p => flag(p)?'Review recent K/D':p.n==null?'Insufficient data':'No rule triggered';
+  const chrome = () => `<div class="steam-chrome"><div class="steam-game"><span class="game-logo">CS2</span><span>COUNTER-STRIKE 2</span><span class="sample">Sample data</span></div><div class="steam-right">Steam overlay · Shift + Tab</div></div>`;
+  const dock = () => `<div class="dock" aria-label="Steam overlay context"><span class="dock-item">${icon('layout-grid')} Overview</span><span class="dock-item">${icon('users')} Friends</span><span class="dock-item">${icon('notebook-pen')} Notes</span><span class="dock-item chosen">${icon('scan-line')} Players</span></div>`;
+  const sourceLink = (name,url) => `<a class="profile-link" href="${url}" target="_blank" rel="noreferrer">View on ${name} ${icon('arrow-up-right')}</a>`;
+  const fact = (name,value) => `<div><dt>${name}</dt><dd>${value}</dd></div>`;
+  function who(p){return `<span class="who"><span class="avatar">${p.name[0].toUpperCase()}</span><span class="who-text"><span class="player-name">${p.self?'You':p.name}</span>${flag(p)?`<span class="player-state warn">${icon('triangle-alert')}High K/D</span>`:''}</span></span>`;}
+  function row(p){const i=people.indexOf(p);return `<button class="roster-line cursor-interaction ${s.selected===i?'selected':''}" data-player="${i}" aria-label="Inspect ${p.name}" aria-pressed="${s.selected===i}">${who(p)}<span class="metric-cell number">${p.rating==null?'N/A':signed(p.rating)}</span><span class="metric-cell number">${p.aim==null?'N/A':fmt(p.aim)}</span><span class="metric-cell number" data-metric="ttd">${p.ttd==null?'N/A':fmt(p.ttd)+' ms'}</span><span class="metric-cell number ${flag(p)?'hot':''}">${p.kd==null?'N/A':fmt(p.kd,2)}${p.n==null?'':`<small>${p.n} games</small>`}</span></button>`;}
+  function team(title,players){return `<section class="team-group" aria-label="${title}"><div class="team-heading"><h3>${title} <span class="muted">· ${players.length}</span></h3></div><div class="roster-line header"><span>PLAYER</span><span class="metric-cell">Leetify Rating</span><span class="metric-cell">Aim</span><span class="metric-cell" data-tooltip="Time from seeing an enemy to first damage, not pure reaction time.">Time to Damage</span><span class="metric-cell">Recent K/D</span></div>${players.map(row).join('')}</section>`;}
+  function roster(){
+    let groups;
+    if(s.teams==='Teams unavailable')groups=team('Team unknown',people);
+    else if(s.teams==='Free-for-all')groups=team('Free-for-all',people);
+    else groups=team('Opponents',people.filter(p=>p.team==='opponents'))+team('Your team',people.filter(p=>p.team==='yours'));
+    return `<div class="roster-head"><strong>Leetify</strong><span>1 flagged</span></div>${groups}${s.manual?`<section class="team-group manual-group" aria-label="Team unknown, manually added"><div class="team-heading"><h3>Team unknown · 1</h3><span class="team-note">Manually added</span></div><div class="roster-line"><span><span class="player-name">Added profile</span></span><span class="metric-cell">N/A</span><span class="metric-cell">N/A</span><span class="metric-cell" data-metric="ttd">N/A</span><span class="metric-cell">N/A</span></div></section>`:''}`;
+  }
+  function leetify(p){
+    if(p.rating==null)return `<div class="provider-empty"><h3>Leetify data unavailable</h3>${sourceLink('Leetify','https://leetify.com/')}</div>`;
+    return `<dl class="facts">${fact('Leetify Rating',signed(p.rating))}${fact('Aim',fmt(p.aim))}${fact('Utility',fmt(p.utility))}${fact('Positioning',fmt(p.positioning))}${fact('Time to Damage',fmt(p.ttd)+' ms')}${fact('Crosshair placement',fmt(p.preaim,1)+'°')}${fact('Accuracy (Enemy Spotted)',fmt(p.accuracy)+'%')}${fact('Proper Counter-Strafing',fmt(p.strafing)+'%')}${fact('Premier rating',fmt(p.premier))}${fact('Recent K/D',fmt(p.kd,2)+` <span class="minor">· ${p.n} matches</span>`)}</dl>${flag(p)?`<div class="review-note"><div class="review-title">${icon('triangle-alert')}High K/D</div><p class="minor">Plugin rule: ≥ 2.00 K/D · min. 20 matches</p></div>`:''}<div class="data-actions">${sourceLink('Leetify','https://leetify.com/')}<button class="data-toggle cursor-interaction" data-action="data-details" aria-expanded="${s.dataDetails}" aria-controls="data-notes">Data details</button></div><div class="data-notes" id="data-notes" ${s.dataDetails?'':'hidden'}><p>${status(p)}.</p><p>Recent K/D is derived from Leetify match records. The threshold is plugin-defined.</p><p>Profile window: unavailable. Leetify benchmarks: unavailable.</p><p>Preview links open provider sites.</p></div>`;
+  }
+  function providerBody(p){
+    if(s.provider==='Leetify')return leetify(p);
+    if(s.provider==='CSStats')return `<div class="provider-empty">${sourceLink('CSStats','https://csstats.gg/')}</div>`;
+    if(s.provider==='FACEIT')return p.level==null?`<div class="provider-empty"><h3>FACEIT data unavailable</h3>${sourceLink('FACEIT','https://www.faceit.com/')}</div>`:`<div class="source-context">Lifetime · ${p.matches} matches</div><dl class="facts">${fact('Level',fmt(p.level))}${fact('ELO',fmt(p.elo))}${fact('K/D',fmt(p.fkd,2))}${fact('Headshots',fmt(p.hs)+'%')}${fact('Win rate',fmt(p.win)+'%')}</dl>${sourceLink('FACEIT','https://www.faceit.com/')}`;
+    return `<dl class="facts">${fact('CS2 playtime',p.hours==null?'Unavailable':fmt(p.hours)+' h')}${fact('Game details',p.privateHours?'Private':p.hours==null?'Unavailable':'Public')}${fact('Roster source','Steam current players')}${fact('Team',groupName(p))}</dl>${sourceLink('Steam','https://steamcommunity.com/')}`;
+  }
+  function inspector(){const p=people[s.selected];return `<div class="who"><span class="avatar">${p.name[0].toUpperCase()}</span><div><h2>${p.self?'You':p.name}</h2></div></div><div class="external-links" aria-label="More player lookup sites"><a href="https://csrep.gg/" target="_blank" rel="noreferrer" aria-label="Open CSRep website">CSRep ${icon('arrow-up-right')}</a><a href="https://cstracker.gg/" target="_blank" rel="noreferrer" aria-label="Open CSTracker website">CSTracker ${icon('arrow-up-right')}</a></div><div class="provider-tabs" role="tablist" aria-label="Statistics provider">${providers.map(name=>`<button class="provider-tab cursor-interaction" id="tab-${name}" role="tab" aria-controls="provider-panel" aria-selected="${s.provider===name}" data-provider="${name}">${name}</button>`).join('')}</div><div id="provider-panel" role="tabpanel" aria-live="polite" aria-labelledby="tab-${s.provider}">${providerBody(p)}</div>`;}
+  function manualForm(){return `<form class="manual" ${s.addOpen?'':'hidden'}><label for="cs2-profile-input">Add a Steam profile link or SteamID64</label><input id="cs2-profile-input" data-profiles placeholder="https://steamcommunity.com/profiles/…"><div class="action-row"><button type="button" data-action="submit-profile" class="action primary cursor-interaction">Add to report</button><button type="button" class="action cursor-interaction" data-action="cancel-add">Cancel</button></div><p class="feedback" role="status">${s.feedback}</p></form>`;}
+  function render(){
+    el.classList.toggle('density-compact',s.density==='Compact');
+    if(s.closed)el.innerHTML=chrome()+`<div class="empty"><h2>Player report</h2><button class="action primary cursor-interaction" data-action="reopen">${icon('scan-line')} Scan players</button></div>`+dock();
+    else el.innerHTML=chrome()+`<div class="report"><header class="titlebar"><div><h1>Player report</h1><div class="subtitle">${s.loading?'Refreshing…':s.updated?'Just updated':'21:47'} · Historical stats</div></div><div class="action-row"><button class="action cursor-interaction" data-action="add">${icon('plus')} Add profiles</button><button class="action primary cursor-interaction" data-action="refresh">${icon('refresh-cw')} Refresh report</button><button class="icon-action cursor-interaction" data-action="close" aria-label="Close report">${icon('x')}</button></div></header><div class="coverage">${icon('info')}<span><strong>${s.empty?0:10} detected by Steam</strong> · ${s.manual?'1 added manually · ':''}Coverage unverified</span></div>${manualForm()}${s.loading?`<div class="progress-line" role="status"><span>Refreshing public sources…</span><button class="action cursor-interaction" data-action="cancel">Cancel</button></div>`:''}${s.empty?`<div class="empty"><h2>No roster available</h2><p>Retry or add profiles.</p><button class="action primary cursor-interaction" data-action="refresh">Retry scan</button></div>`:`<div class="split"><div class="roster-list">${roster()}</div><aside class="inspector" aria-label="Selected player profile">${inspector()}</aside></div>`}<footer class="report-footer"><span>Flags are not proof of cheating.</span><a class="provided" href="https://leetify.com/" target="_blank" rel="noreferrer">Data provided by <b>Leetify</b></a></footer></div>`+dock();
+    if(globalThis.lucide)lucide.createIcons({attrs:{width:15,height:15}});
+  }
+  function persist(){window.openai?.setWidgetState?.({modelContent:{design:'Quick review',primaryProvider:'Leetify',selectedSamplePlayer:people[s.selected].name,providerTab:s.provider,teamDisplay:s.teams},privateContent:{version:2,selected:s.selected,provider:s.provider,teams:s.teams}})?.catch(()=>{});}
+  function selectProvider(name,focus=false){s.provider=name;s.dataDetails=false;render();if(focus)el.querySelector(`[data-provider="${name}"]`)?.focus();persist();}
+  function submitManual(){
+    const value=el.querySelector('[data-profiles]')?.value.trim()||'';
+    if(!/^(https:\/\/steamcommunity\.com\/(profiles\/\d{17}|id\/[\w-]+)\/?|\d{17})$/.test(value)){s.feedback='Enter a Steam profile link or SteamID64.';render();return;}
+    s.manual=true;s.empty=false;s.feedback='Sample profile added.';render();persist();
+  }
+  el.addEventListener('submit',e=>{e.preventDefault();submitManual();});
+  el.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b||!el.contains(b))return;
+    if(b.dataset.player!==undefined){s.selected=Number(b.dataset.player);s.dataDetails=false;render();el.querySelector(`[data-player="${s.selected}"]`)?.focus();persist();return;}
+    if(b.dataset.provider){selectProvider(b.dataset.provider,true);return;}
+    const a=b.dataset.action;if(!a)return;
+    if(a==='submit-profile'){submitManual();return;}
+    if(a==='data-details'){s.dataDetails=!s.dataDetails;render();el.querySelector('[data-action="data-details"]')?.focus();return;}
+    if(a==='add'){s.addOpen=!s.addOpen;s.feedback='';render();if(s.addOpen)el.querySelector('[data-profiles]')?.focus();}
+    if(a==='cancel-add'){s.addOpen=false;render();el.querySelector('[data-action="add"]')?.focus();}
+    if(a==='refresh'){clearTimeout(timer);s.provider='Leetify';s.loading=true;s.manual=false;s.empty=false;s.feedback='';render();timer=setTimeout(()=>{s.loading=false;s.updated=true;render();},800);}
+    if(a==='cancel'){clearTimeout(timer);s.loading=false;render();}
+    if(a==='close'){clearTimeout(timer);s.closed=true;s.loading=false;s.manual=false;s.addOpen=false;render();el.querySelector('[data-action="reopen"]')?.focus();}
+    if(a==='reopen'){s.closed=false;s.selected=0;s.provider='Leetify';render();}
+    persist();
+  });
+  el.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&e.target.matches('[data-profiles]')){e.preventDefault();submitManual();return;}
+    if(e.key==='Escape'&&!s.closed){clearTimeout(timer);s.closed=true;s.loading=false;s.manual=false;s.addOpen=false;render();el.querySelector('[data-action="reopen"]')?.focus();}
+    const b=e.target.closest('[role="tab"]');
+    if(b&&['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){
+      e.preventDefault();const i=providers.indexOf(b.dataset.provider);
+      selectProvider(providers[e.key==='Home'?0:e.key==='End'?3:(i+(e.key==='ArrowRight'?1:3))%4],true);
+    }
+  });
+  window.addEventListener('openai:set_globals',e=>{
+    const data=e.detail?.globals?.widgetState?.privateContent;
+    if(data){const previous=JSON.stringify([s.selected,s.provider,s.teams]);restore(data);if(previous!==JSON.stringify([s.selected,s.provider,s.teams]))render();}
+  });
+  render();
+  if(globalThis.Tweak){const tweak=new Tweak({container:el,onChange:()=>{render();persist();}});tweak.addSelect(s,'teams',{label:'Team data',options:['Teams known (sample)','Teams unavailable','Free-for-all']});tweak.addSelect(s,'density',{label:'Row density',options:['Comfortable','Compact']});tweak.addToggle(s,'empty',{label:'Roster unavailable'});}
+})();
+</script>

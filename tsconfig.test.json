@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","compilerOptions":{"types":["node","vitest/globals"],"strict":true},"include":["tests/**/*.ts","tests/**/*.tsx","shared/**/*.ts","frontend/**/*.ts","frontend/**/*.tsx","vitest.config.ts"]}
