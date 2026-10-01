@@ -669,6 +669,10 @@ function get_faceit_profile(steamId)
     })
 end
 
+function resolve_steam_profile(vanity)
+    return encode(require("steam").resolve_vanity(vanity))
+end
+
 local function set_default(key, value)
     if millennium.config.get(key) == nil then
         millennium.config.set(key, value)
