@@ -23,10 +23,15 @@ function steamMetrics(data: ObjectData): Partial<Metrics> {
 		memberSince = text(doc.querySelector('memberSince')?.textContent);
 	let hours: number | null = null;
 	if (data.games_xml) {
-		const games = xml(data.games_xml, 'gamesList');
-		if (!games.querySelector('error'))
-			for (const game of games.querySelectorAll('game'))
-				if (game.querySelector('appID')?.textContent === '730') hours = numeric(game.querySelector('hoursOnRecord')?.textContent, 0);
+		try {
+			const games = xml(data.games_xml, 'gamesList');
+			if (!games.querySelector('error'))
+				for (const game of games.querySelectorAll('game'))
+					if (game.querySelector('appID')?.textContent === '730') hours = numeric(game.querySelector('hoursOnRecord')?.textContent, 0);
+		} catch {
+			// Optional games data cannot invalidate an already validated public profile.
+			hours = null;
+		}
 	}
 	return { name, memberSince, cs2Hours: hours };
 }

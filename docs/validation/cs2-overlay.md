@@ -56,7 +56,7 @@ remain untested until a user-started session is available.
 
 ## Automated release evidence
 
-- 82 TypeScript/React tests passed, including real Windows PowerShell archive,
+- 88 TypeScript/React tests passed, including real Windows PowerShell archive,
   dry-run, replacement, backup and injected-rename-failure rollback tests.
 - 14 Lua behavioral tests passed; syntax is checked for every backend Lua file
   with pinned luaparse, in addition to the Lua 5.4 runtime checks.
@@ -87,8 +87,11 @@ compatibility failures. The fix pass covers each, including combined hung
 provider/vanity slots. Native API diagnostics are visible in plugin settings and
 the report; failed mounts remove partial DOM and styles.
 
-Deferred minor: malformed optional Steam games XML currently also hides otherwise
-valid profile name/member-since data. Other provider tabs remain independent.
+Resolved in the user-requested follow-up: malformed optional Steam games XML
+now leaves valid public profile name/member-since data available. CS2 hours are
+unavailable; malformed or private profile XML still exposes no profile data.
+Regression coverage includes truncated XML, wrong roots, disallowed document
+types and non-string games payloads.
 
 Final archive/install verification: all 24 installed files match the extracted
 release; all 22 Extendium files are unchanged. Backup of the first candidate:

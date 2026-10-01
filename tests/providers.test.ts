@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { parseProviderResponse, parseVanityResponse, ProviderRequestError } from '../frontend/report/providers';
-import { envelope, faceitFixture, leetifyFixture, steamFixture } from './fixtures/providers';
+import { envelope, faceitFixture, leetifyFixture, steamFixture, steamProfile } from './fixtures/providers';
 it('preserves Leetify units, negative ratings and literal player text without inventing benchmarks', () => {
 	const result = parseProviderResponse('leetify', leetifyFixture(), 0);
 	expect(result.fetchedAt).toBe(1700000000000);
@@ -50,13 +50,33 @@ it('preserves private, not-found and rate-limited states and Retry-After seconds
 	expect(parseProviderResponse('leetify', 'not-json', 0).status).toBe('error');
 	expect(parseProviderResponse('leetify', envelope({ privacy_mode: 'private' }), 0).status).toBe('private');
 });
-it('parses Steam XML as XML, never exposes private games as zero hours, and rejects malformed XML', () => {
+it('parses Steam XML as XML and never exposes private games as zero hours', () => {
 	expect(
 		parseProviderResponse('steam', steamFixture('<gamesList><games><game><appID>730</appID><hoursOnRecord>1,234.5</hoursOnRecord></game></games></gamesList>'), 0).data,
 	).toMatchObject({ cs2Hours: 1234.5, name: 'Synthetic <player>', memberSince: 'January 1, 2020' });
 	expect(parseProviderResponse('steam', steamFixture('<gamesList><error>This profile is private</error></gamesList>'), 0).data?.cs2Hours).toBeNull();
-	expect(parseProviderResponse('steam', steamFixture('<gamesList><games>'), 0).status).toBe('error');
-	expect(parseProviderResponse('steam', envelope({ profile_xml: '<profile><privacyState>private</privacyState></profile>' }), 0).status).toBe('private');
+	expect(
+		parseProviderResponse('steam', envelope({ profile_xml: '<profile><privacyState>private</privacyState></profile>', games_xml: '<gamesList><games>' }), 0),
+	).toMatchObject({ status: 'private', data: null });
+});
+
+it.each([
+	['truncated XML', '<gamesList><games>'],
+	['wrong root', '<html>Steam unavailable</html>'],
+	['disallowed document type', '<!DOCTYPE gamesList><gamesList/>'],
+	['non-string payload', { games: [] }],
+])('preserves public Steam identity when optional games data contains %s', (_label, games) => {
+	const result = parseProviderResponse('steam', envelope({ profile_xml: steamProfile, games_xml: games }), 0);
+	expect(result).toMatchObject({
+		status: 'ok',
+		fetchedAt: 1700000000000,
+		data: { name: 'Synthetic <player>', memberSince: 'January 1, 2020', cs2Hours: null },
+	});
+});
+
+it.each(['<profile><steamID>Truncated', '<gamesList/>'])('still rejects malformed profile XML despite valid games data: %s', (profile) => {
+	const result = parseProviderResponse('steam', envelope({ profile_xml: profile, games_xml: '<gamesList><games/></gamesList>' }), 0);
+	expect(result).toMatchObject({ status: 'error', data: null });
 });
 
 it('keeps structured Steam rate-limit errors for the shared vanity coordinator', () => {

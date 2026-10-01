@@ -53,3 +53,18 @@ Final: no second review dispatched; all five Important findings addressed in one
 Final release checks: 82/82 TypeScript/React and 14/14 Lua tests passed; frontend/webkit/test typechecks passed; all 11 backend Lua files parsed; production build passed in 20.73s; git diff --check clean. Windows package/installer tests ran against real PowerShell.
 Final installation: rebuilt and extracted archive verified; all 24 installed files byte-match release, all 22 Extendium files unchanged. Prior candidate backup exactly matches earlier validated package at C:\Program Files (x86)\Steam\millennium\backups\cs2-player-tracker-20260930-220143-789-2eb98ab2. Archive SHA-256: b5c50b120df97b5922a3b58aceb5a5175f79b8874248c4ba7433ec12a9d1a8e1.
 Final handoff: keep local feat/cs2-server-report branch. No merge, push, Steam restart, activation or gameplay session performed. Preserve unrelated untracked .serena/project.yml.
+
+## Steam games XML follow-up, 2026-09-30
+
+The user requested the previously deferred minor be fixed. Four regression cases
+first failed because malformed optional games data caused the entire Steam result
+to become an error. Games parsing now has its own failure boundary: public
+profile name, member-since and fetch timestamp survive, while CS2 hours remain
+null. Private profiles and malformed profile XML still return no profile data.
+All four regressions pass alongside two profile-validation guards. Full suites:
+88/88 TypeScript/React tests and 14/14 Lua tests passed.
+
+A concurrent task renamed the source project to CS2 Lobby Stats. This fix remains
+in that renamed source. To update the existing `cs2-player-tracker` installation
+without mixing identities or deploying a duplicate, its release was rebuilt in
+an isolated snapshot of commit `56fd2c9` plus this parser fix and its tests.
