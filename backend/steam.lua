@@ -3,8 +3,10 @@ local M={}
 function M.valid_id(id)
  return type(id)=='string' and #id==17 and id:match('^%d+$')~=nil and id>'76561197960265728' and id<='76561202255233023'
 end
-local function result_error(status)
- return {status=status==404 and 'not_found' or status==429 and 'rate_limited' or status==403 and 'private' or 'error',message='Steam profile unavailable.'}
+local function result_error(status,headers)
+ headers=headers or {}
+ local retry=status==429 and (headers['Retry-After'] or headers['retry-after'] or '60') or nil
+ return {retry_after=retry,status=status==404 and 'not_found' or status==429 and 'rate_limited' or status==403 and 'private' or 'error',message='Steam profile unavailable.'}
 end
 function M.request(url,deadline)
  local remaining=math.floor(deadline-os.time())
@@ -22,7 +24,7 @@ end
 function M.resolve_vanity(vanity)
  if type(vanity)~='string' or #vanity<1 or #vanity>64 or not vanity:match('^[%w_-]+$') then return {status='error',message='Invalid vanity name.'} end
  local response=M.request('https://steamcommunity.com/id/'..vanity..'/?xml=1',os.time()+10)
- if not response or response.status~=200 then return result_error(response and response.status) end
+ if not response or response.status~=200 then return result_error(response and response.status,response and response.headers) end
  local body=response.body or ''
  if not body:match('<profile>.*</profile>%s*$') or body:find('<!DOCTYPE',1,true) then return result_error() end
  local id=body:match('<steamID64>(%d+)</steamID64>')
@@ -33,7 +35,7 @@ function M.summary(steam_id,deadline)
  if not M.valid_id(steam_id) then return {status='error',message='Invalid SteamID64.'} end
  local root='https://steamcommunity.com/profiles/'..steam_id
  local profile=M.request(root..'/?xml=1',deadline)
- if not profile or profile.status~=200 then return result_error(profile and profile.status) end
+ if not profile or profile.status~=200 then return result_error(profile and profile.status,profile and profile.headers) end
  local body=profile.body or ''
  local privacy=body:match('<privacyState>(.-)</privacyState>')
  if privacy and privacy~='public' then return {status='private',message='This Steam profile is private.'} end

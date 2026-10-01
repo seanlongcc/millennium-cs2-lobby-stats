@@ -53,3 +53,27 @@ PowerShell FileVersionInfo reports Millennium **v3.5.0** and Steam executable
 **10.96.30.42**. Steam was running; CS2 was not. No active game was interrupted.
 The automatic team source remains unavailable. All gameplay-mode matrix entries
 remain untested until a user-started session is available.
+
+## Automated release evidence
+
+- 64 TypeScript/React tests passed, including real Windows PowerShell archive,
+  dry-run, replacement, backup and injected-rename-failure rollback tests.
+- 13 Lua behavioral tests passed; syntax is checked for every backend Lua file
+  with pinned luaparse, in addition to the Lua 5.4 runtime checks.
+- Frontend and original webkit typechecks pass. Test typechecking uses the same
+  ES2020 target; package test escaping was corrected to avoid ES2021-only methods.
+- Production build retains external Steam React and generates index.js/webkit.js.
+- Package verifier checks the extracted archive, required artifacts, identity,
+  version, links and accidental development/private files.
+
+UI interaction tests use native-component boundary doubles because Steam webpack
+is not available to jsdom. They do not establish actual theme/focus parity.
+
+## Installation
+
+The PowerShell installer installed the validated archive into
+`C:\Program Files (x86)\Steam\millennium\plugins\cs2-player-tracker`.
+No previous tracker directory existed, so no replacement backup was needed.
+The installed package passed verification. Extendium's manifest SHA-256 was
+unchanged. Steam remained running; the plugin has not been enabled or observed
+inside a live CS2 overlay. Enable it in Millennium and restart Steam when ready.

@@ -1,3 +1,9 @@
+# CS2 Player Tracker 0.1.0
+
+- Adds native Steam overlay reports, manual roster supplementation, Leetify-first review and provider tabs.
+- Adds bounded provider requests, privacy checks, explainable recent K/D flags and Windows installation with rollback.
+- Forks upstream 0.4.5; original profile cards remain available.
+
 # Changelog
 
 All notable changes to this project are documented here. The project follows [Semantic Versioning](https://semver.org/).
