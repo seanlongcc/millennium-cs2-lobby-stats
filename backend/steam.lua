@@ -29,4 +29,17 @@ function M.resolve_vanity(vanity)
  if not M.valid_id(id) then return result_error() end
  return {status='ok',steamId=id}
 end
+function M.summary(steam_id,deadline)
+ if not M.valid_id(steam_id) then return {status='error',message='Invalid SteamID64.'} end
+ local root='https://steamcommunity.com/profiles/'..steam_id
+ local profile=M.request(root..'/?xml=1',deadline)
+ if not profile or profile.status~=200 then return result_error(profile and profile.status) end
+ local body=profile.body or ''
+ local privacy=body:match('<privacyState>(.-)</privacyState>')
+ if privacy and privacy~='public' then return {status='private',message='This Steam profile is private.'} end
+ if body:match('<steamID64>(%d+)</steamID64>')~=steam_id then return result_error() end
+ local games=M.request(root..'/games/?tab=all&xml=1',deadline)
+ local retry=games and games.status==429 and ((games.headers or {})['Retry-After'] or (games.headers or {})['retry-after'] or '60') or nil
+ return {status='ok',fetched_at=os.time(),retry_after=retry,data={profile_xml=body,games_xml=games and games.status==200 and games.body or nil}}
+end
 return M
