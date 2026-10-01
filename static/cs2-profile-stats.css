@@ -394,7 +394,8 @@
 .cs2ps-aim-good .cs2ps-metric-value { color: #78b8db; }
 .cs2ps-aim-great .cs2ps-metric-value { color: #e1a75f; }
 .cs2ps-aim-elite .cs2ps-metric-value { color: #79c9ef; }
-.cs2ps-aim-suspicious .cs2ps-metric-value { color: #e06f76; }
+.cs2ps-aim-suspicious .cs2ps-metric-value,
+.cs2ps-ttd-suspicious .cs2ps-metric-value { color: #e06f76; }
 
 .cs2ps-form-row {
 	display: flex;

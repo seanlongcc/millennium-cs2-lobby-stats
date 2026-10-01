@@ -102,6 +102,7 @@ function mount(count = 32) {
 			};
 		},
 		scan: vi.fn(async () => {}),
+		refreshPlayer: vi.fn(),
 		addProfiles: vi.fn(async () => {}),
 		cancel: vi.fn(),
 		close: vi.fn(),
@@ -145,6 +146,24 @@ it('renders every player, compact coverage and explicit metric units with litera
 	expect(document.body.textContent).not.toContain('95%');
 	expect(document.body.textContent).not.toContain('No rule triggered');
 });
+it('shows a standalone Time to Damage flag at 475 ms and clears it above the threshold', () => {
+	const h = mount(1);
+	const updateTime = (timeToDamageMs: number) => {
+		const current = h.snapshot();
+		const metrics = { ...emptyMetrics(), timeToDamageMs };
+		h.update({ ...current, rows: [{ ...current.rows[0], metrics, assessment: assess(metrics) }] });
+	};
+	updateTime(475);
+	expect(document.querySelector('[data-cs2-player]')!.classList.contains('cs2-tracker-flag')).toBe(true);
+	expect(document.body.textContent).toContain('Suspicious Time to Damage');
+	expect(document.querySelector('[role=tabpanel]')!.textContent).toContain('Plugin rule: Time to Damage ≤ 475 ms');
+	h.render(false);
+	expect(document.querySelector('.cs2-tracker-flag')).toBeNull();
+	h.render(true);
+	updateTime(476);
+	expect(document.querySelector('.cs2-tracker-flag')).toBeNull();
+	expect(document.body.textContent).not.toContain('Suspicious Time to Damage');
+});
 it('keeps provider order and selection, preserves tab across players, resets it on refresh', async () => {
 	const h = mount(2);
 	expect([...document.querySelectorAll('[role=tab]')].map((x) => x.textContent)).toEqual(['Leetify', 'CSStats', 'FACEIT', 'Steam']);
@@ -175,7 +194,7 @@ it('discloses provenance on demand and toggles highlighting without changing met
 	expect(document.body.textContent).not.toContain('Leetify benchmark comparison unavailable');
 	await click('Data details');
 	expect(document.body.textContent).toContain('Leetify benchmark comparison unavailable');
-	expect(document.body.textContent).toContain('Aggregate window unavailable');
+	expect(document.body.textContent).toContain('latest 30 tracked games');
 	expect(document.querySelector('img[alt="Leetify"]')).not.toBeNull();
 	h.render(false);
 	expect(document.querySelector('.cs2-tracker-flag')).toBeNull();

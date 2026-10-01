@@ -4,7 +4,7 @@ import { normalizeCoplay, captureRoster, groupRoster } from '../frontend/steam/r
 import { createSteamRuntime } from '../frontend/steam/runtime';
 import type { PlayerIdentity, TeamGroup } from '../shared/report';
 const raw = (count: number) => ({ currentUsers: Array.from({ length: count }, (_, i) => ({ appid: 730, accountid: i + 1 })), recentUsers: [] });
-it('never promotes recent users or another game into the live roster', () => {
+it('never promotes recent users or another game into the Steam-reported roster', () => {
 	const r = normalizeCoplay(
 		{
 			currentUsers: [

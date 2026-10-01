@@ -14,6 +14,8 @@ const required = [
 	'backend/steam.lua',
 	'static/cs2-profile-stats.css',
 	'static/cs2-lobby-stats.css',
+	'static/cs2-report.html',
+	'static/cs2-report.css',
 	'static/leetify-badge-white-small.png',
 ];
 try {

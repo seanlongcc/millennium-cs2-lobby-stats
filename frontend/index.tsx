@@ -1,11 +1,12 @@
-import { createReportController, type ReportController } from './report/controller';
+import { createReportController } from './report/controller';
+import { createBrowserReport } from './report/browser';
 import { fetchProvider, resolveVanity } from './report/ipc';
-import { ReportPanel } from './report/ReportPanel';
 import { createSteamRuntime } from './steam/runtime';
 import { startOverlayHosts, NativeBoundary } from './steam/overlay-host';
 import { CompatibilityNotice, createDiagnostics, nativeComponentErrors } from './steam/compatibility';
-import * as Native from '@steambrew/client';
-import { definePlugin, DialogBody, DialogBodyText, ModalRoot, Router, showModal, Field, IconsModule, TextField, ToggleField, usePluginConfig } from '@steambrew/client';
+// TTC 3.3 matches the namespace name to inject the plugin ID into IPC/config calls.
+import * as client from '@steambrew/client';
+import { callable, definePlugin, DialogBody, DialogBodyText, pluginConfig, Router, Field, IconsModule, TextField, ToggleField, usePluginConfig } from '@steambrew/client';
 
 const SettingsContent = () => {
 	const [highlight, setHighlight] = usePluginConfig<boolean>('highlight_enabled');
@@ -52,23 +53,18 @@ const SettingsContent = () => {
 	);
 };
 
-const ReportContent = ({ controller, onClose }: { controller: ReportController; onClose: () => void }) => {
-	const [highlight] = usePluginConfig<boolean>('highlight_enabled');
-	return <ReportPanel controller={controller} onClose={onClose} highlightEnabled={highlight ?? true} />;
-};
+const getReportBrowserUrl = callable<[], string>('get_report_browser_url');
+let browserReport: ReturnType<typeof createBrowserReport> | undefined;
+export function reportBrowserRequest(token: string, action: string, input: string) {
+	return browserReport?.request(token, action, input) ?? JSON.stringify({ error: 'Plugin unloaded. Select Scan players again.' });
+}
 
 export default definePlugin(() => {
-	const runtime = createSteamRuntime({ SteamClient, App: (window as any).App, Router });
+	const runtime = createSteamRuntime({ SteamClient, App: (window as any).App, Router, friendStore: (window as any).friendStore });
 	const controller = createReportController({ runtime, fetch: fetchProvider, resolveVanity, now: Date.now });
 	const diagnostics = createDiagnostics();
 	let mountError = '';
-	const updateDiagnostics = () =>
-		diagnostics.set([
-			...(runtime.compatibilityErrors?.() ?? []),
-			...nativeComponentErrors(Native),
-			...(typeof showModal === 'function' ? [] : ['Steam modal API unavailable.']),
-			...(mountError ? [mountError] : []),
-		]);
+	const updateDiagnostics = () => diagnostics.set([...(runtime.compatibilityErrors?.() ?? []), ...nativeComponentErrors(client), ...(mountError ? [mountError] : [])]);
 	updateDiagnostics();
 	const diagnosticTimer = setInterval(updateDiagnostics, 1000);
 	const reportError = (message: string) => {
@@ -76,53 +72,40 @@ export default definePlugin(() => {
 		updateDiagnostics();
 		controller.close();
 	};
-	let modal: ReturnType<typeof showModal> | undefined;
-	const close = () => {
-		const previous = modal;
-		modal = undefined;
-		previous?.Close();
-		controller.close();
-	};
+	let highlightEnabled = true;
+	void pluginConfig
+		.get<boolean>('highlight_enabled')
+		.then((value) => {
+			highlightEnabled = value ?? true;
+		})
+		.catch(() => {});
+	browserReport = createBrowserReport({ runtime, controller, getUrl: getReportBrowserUrl, highlightEnabled: () => highlightEnabled });
 	const stop = startOverlayHosts(
 		runtime,
 		(host) => {
-			close();
-			try {
-				modal = showModal(
-					<ModalRoot onCancel={close} onEscKeypress={close} closeModal={close} bAllowFullSize>
-						<CompatibilityNotice diagnostics={diagnostics} />
-						<NativeBoundary onError={reportError}>
-							<ReportContent controller={controller} onClose={close} />
-						</NativeBoundary>
-					</ModalRoot>,
-					host.window,
-					{
-						strTitle: 'CS2 Lobby Stats',
-						bNeverPopOut: true,
-						fnOnClose: () => {
-							modal = undefined;
-							controller.close();
-						},
-					},
-				);
-				void controller.scan();
-			} catch (error) {
-				reportError(error instanceof Error ? error.message : 'Steam modal unavailable.');
-			}
+			void pluginConfig
+				.get<boolean>('highlight_enabled')
+				.then((value) => {
+					highlightEnabled = value ?? true;
+				})
+				.catch(() => {});
+			void browserReport!.open(host).catch((error) => reportError(error instanceof Error ? error.message : 'Steam browser unavailable.'));
 		},
 		reportError,
 	);
+
 	return {
 		title: 'CS2 Lobby Stats',
 		icon: <IconsModule.Settings />,
 		content: (
 			<>
 				<CompatibilityNotice diagnostics={diagnostics} />
-				<NativeBoundary onError={reportError}>{nativeComponentErrors(Native).length === 0 && <SettingsContent />}</NativeBoundary>
+				<NativeBoundary onError={reportError}>{nativeComponentErrors(client).length === 0 && <SettingsContent />}</NativeBoundary>
 			</>
 		),
 		onDismount: () => {
-			close();
+			browserReport?.dispose();
+			browserReport = undefined;
 			stop();
 			clearInterval(diagnosticTimer);
 			controller.dispose();

@@ -10,22 +10,27 @@ export function parseManualRoster(text: string): { steamIds: SteamId[]; vanityNa
 		.split(/[\s,;]+/)
 		.filter(Boolean)) {
 		let id: string | undefined;
+		const nameKey = item.toLowerCase();
 		const three = item.match(/^\[U:1:(\d{1,10})\]$/),
 			two = item.match(/^STEAM_[01]:([01]):(\d{1,10})$/);
 		if (validSteamId(item)) id = item;
-		else if (three || two) {
+		else if (/^[A-Za-z0-9_-]{1,64}$/.test(item) && !/^\d{17,}$/.test(item)) {
+			if (!names.has(nameKey)) names.set(nameKey, item);
+			continue;
+		} else if (three || two) {
 			const account = three ? BigInt(three[1]) : BigInt(two![2]) * 2n + BigInt(two![1]);
 			if (account > 0n && account <= 4294967295n) id = (76561197960265728n + account).toString();
 		} else {
 			try {
-				const url = new URL(item);
-				if (url.protocol !== 'https:' || url.hostname !== 'steamcommunity.com' || url.port || url.username || url.password) throw Error();
+				const input = /^(?:www\.)?steamcommunity\.com\//i.test(item) ? `https://${item}` : /^\/(?:id|profiles)\//.test(item) ? `https://steamcommunity.com${item}` : item;
+				const url = new URL(input);
+				if (!['https:', 'http:'].includes(url.protocol) || !['steamcommunity.com', 'www.steamcommunity.com'].includes(url.hostname) || url.port || url.username || url.password) throw Error();
 				const path = url.pathname.match(/^\/(profiles|id)\/([A-Za-z0-9_-]{1,64})\/?$/);
 				if (!path) throw Error();
 				if (path[1] === 'profiles') {
 					if (validSteamId(path[2])) id = path[2];
 				} else {
-					names.set(path[2].toLowerCase(), path[2]);
+					if (!names.has(path[2].toLowerCase())) names.set(path[2].toLowerCase(), path[2]);
 					continue;
 				}
 			} catch {

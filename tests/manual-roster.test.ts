@@ -7,7 +7,6 @@ it('deduplicates all supported ID forms with lossless conversion', () => {
 });
 it.each([
 	'https://steamcommunity.com.evil.test/id/me',
-	'http://steamcommunity.com/id/me',
 	'https://evil.test/id/me',
 	'https://user@steamcommunity.com/id/me',
 	'[U:1:0]',
@@ -16,6 +15,19 @@ it.each([
 	'103582791429521412',
 	'https://steamcommunity.com/id/a%2Fb',
 ])('rejects unsafe or non-individual input %s', (text) => expect(parseManualRoster(text).errors).toHaveLength(1));
+it('resolves bare custom IDs and Steam vanity links to the same deduplicated player', async () => {
+	const input = 'Sample_Name https://steamcommunity.com/id/sample_name/ steamcommunity.com/id/SAMPLE_NAME /id/sample_name http://www.steamcommunity.com/id/sample_name/';
+	expect(parseManualRoster(input)).toEqual({ steamIds: [], vanityNames: ['Sample_Name'], errors: [] });
+	const result = await resolveManualRoster(input, async (name) => {
+		if (name !== 'Sample_Name') throw Error('Unexpected custom ID');
+		return '76561197960265729';
+	});
+	expect(result.errors).toEqual([]);
+	expect(result.players.map(player => player.steamId)).toEqual(['76561197960265729']);
+});
+it.each(['https://steamcommunity.com:444/id/me', '//evil.test/id/me', '../me', 'file:///id/me', 'steamcommunity.com.evil.test/id/me'])('rejects malformed custom profile input %s', (input) => {
+	expect(parseManualRoster(input)).toMatchObject({ steamIds: [], vanityNames: [], errors: [expect.any(String)] });
+});
 it('rejects 32 KiB and 128-entry overflow without returning a partial roster', () => {
 	expect(parseManualRoster('x'.repeat(32769)).errors).toHaveLength(1);
 	const input = Array.from({ length: 129 }, (_, i) => `[U:1:${i + 1}]`).join('\n');

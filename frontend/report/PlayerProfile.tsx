@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { constSysfsExpr, DialogBodyText, DialogButtonSecondary, DialogControlsSection, DialogControlsSectionHeader, Field, Focusable, Navigation } from '@steambrew/client';
 import type { ProviderTab, ReportRow } from '../../shared/report';
+import { assessmentSummary, evidenceDescription } from '../../shared/assessment';
 import { validSteamId } from '../steam/roster';
 import { value } from './PlayerRow';
 const badge = `data:image/png;base64,${constSysfsExpr('leetify-badge-white-small.png', { basePath: '../../static', encoding: 'base64' }).content}`;
@@ -92,15 +93,15 @@ export function PlayerProfile({
 						{metric('Accuracy (Enemy Spotted)', m.spottedAccuracyPct, 1, '%')}
 						{metric('Proper Counter-Strafing', m.counterStrafingPct, 1, '%')}
 						{metric('Premier', m.premier)}
-						<Field padding="compact" label="Recent K/D">
+						<Field padding="compact" label="K/D · Last 30 games">
 							<DialogBodyText>
 								{value(m.recentKd, 2)}
 								{m.recentMatches !== null ? ` · ${m.recentMatches} matches` : ''}
 							</DialogBodyText>
 						</Field>
-						{highlightEnabled && row.assessment.label === 'unusual' && (
-							<DialogBodyText className="cs2-tracker-flag">Plugin rule: ≥ 2.00 K/D · min. 20 matches</DialogBodyText>
-						)}
+						{highlightEnabled && row.assessment.evidence.map(evidence => (
+							<DialogBodyText key={evidence.ruleId} className="cs2-tracker-flag">{evidenceDescription(evidence)}</DialogBodyText>
+						))}
 						<Focusable className="cs2-tracker-actions">
 							<Source label="View on Leetify" url={`https://leetify.com/app/profile/${id}`} disabled={!valid} />
 							<DialogButtonSecondary aria-label="Data provided by Leetify" onClick={() => Navigation.NavigateToExternalWeb('https://leetify.com/')}>
@@ -146,8 +147,8 @@ export function PlayerProfile({
 			</DialogButtonSecondary>
 			{details && (
 				<DialogBodyText>
-					{row.assessment.label === 'insufficient_data' ? 'Insufficient data' : row.assessment.label === 'unusual' ? 'High K/D' : 'No rule triggered'}. Recent K/D
-					uses total kills ÷ total deaths across valid recent records returned by Leetify. Aggregate window unavailable. Leetify benchmark comparison unavailable.
+					{assessmentSummary(row.assessment)}. Recent K/D
+					uses total kills ÷ total deaths within the latest 30 tracked games returned by Leetify. Missing records reduce the sample; older games do not fill gaps. Leetify benchmark comparison unavailable.
 					Bots have no public human profile. Team assignments are unavailable from Steam coplay.
 					{selected?.fetchedAt ? ` Updated ${new Date(selected.fetchedAt).toLocaleString()}.` : ''}
 					{selected?.message ? ` ${selected.message}` : ''}

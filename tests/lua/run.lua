@@ -1,6 +1,6 @@
 package.path = './backend/?.lua;' .. package.path
 local selected=arg[1]
-local suites=selected and {selected} or {'steam','report'}
+local suites=selected and {selected} or {'steam','report','browser'}
 local count=0
 function test(name,fn)
  local ok,err=pcall(fn)

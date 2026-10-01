@@ -10,7 +10,7 @@ function Assert-PluginPackage([string]$Root) {
     if ((Split-Path $Root -Leaf) -ne 'cs2-lobby-stats') { throw 'Expected a cs2-lobby-stats folder.' }
     $manifest = Get-Content -LiteralPath (Join-Path $Root 'plugin.json') -Raw | ConvertFrom-Json
     if ($manifest.name -ne 'cs2-lobby-stats' -or $manifest.version -ne '0.1.0' -or $manifest.backendType -ne 'lua') { throw 'Invalid plugin identity or version.' }
-    $required = @('plugin.json', 'README.md', 'UPSTREAM.md', 'LICENSE', '.millennium\Dist\index.js', '.millennium\Dist\webkit.js', 'backend\main.lua', 'backend\providers.lua', 'backend\report.lua', 'backend\steam.lua', 'static\cs2-lobby-stats.css', 'static\cs2-profile-stats.css', 'static\leetify-badge-white-small.png')
+    $required = @('plugin.json', 'README.md', 'UPSTREAM.md', 'LICENSE', '.millennium\Dist\index.js', '.millennium\Dist\webkit.js', 'backend\main.lua', 'backend\providers.lua', 'backend\report.lua', 'backend\steam.lua', 'static\cs2-lobby-stats.css', 'static\cs2-report.html', 'static\cs2-report.css', 'static\cs2-profile-stats.css', 'static\leetify-badge-white-small.png')
     foreach ($file in $required) {
         $item = Get-Item -LiteralPath (Join-Path $Root $file) -Force
         if ($item.PSIsContainer -or $item.Length -eq 0) { throw "Missing artifact: $file" }

@@ -22,7 +22,8 @@ type VanityJob = {
 };
 export interface ReportController {
 	scan(): Promise<void>;
-	addProfiles(text: string): Promise<void>;
+	refreshPlayer(steamId: SteamId): void;
+	addProfiles(text: string, mode?: 'append' | 'replace'): Promise<void>;
 	cancel(): void;
 	close(): void;
 	getSnapshot(): ReportSnapshot;
@@ -42,6 +43,7 @@ export function createReportController(deps: {
 		disposed = false,
 		checking = false;
 	let account: SteamId | null = null;
+	let manualOnly = false;
 	let snapshot: ReportSnapshot = { id: 0, roster: emptyRoster(deps.now()), rows: [], state: 'idle' };
 	let queue: Job[] = [];
 	let vanityQueue: VanityJob[] = [];
@@ -247,25 +249,38 @@ export function createReportController(deps: {
 		}
 	}
 	const signature = (roster: RosterSnapshot) =>
-		roster.players
+		(roster.contextKey ?? '') + ':' + roster.players
 			.filter((p) => p.origin !== 'manual')
 			.map((p) => `${p.steamId}:${p.team}:${p.teamSource}:${p.teamObservedAt === null ? 'unknown' : 'verified'}`)
 			.sort()
 			.join('|');
 	async function checkRoster() {
 		if (checking || !open || !active || disposed || snapshot.state === 'idle' || snapshot.state === 'stale') return;
+		// Activation can arrive while scan() is still capturing. Its result already
+		// validates the account; a second read would cancel it as "still pending".
+		if (rosterReads.size) return;
 		if (!accountValid()) {
 			cancelCells('stale', 'Steam account changed. Refresh report.', true);
 			return;
 		}
 		checking = true;
 		const token = generation;
-		const roster = await readRoster();
+		const roster = manualOnly ? snapshot.roster : await readRoster();
 		checking = false;
 		if (token !== generation || !open || !active || disposed) return;
 		if (!accountValid()) {
 			cancelCells('stale', 'Steam account changed. Refresh report.', true);
 			return;
+		}
+		// A recent-player estimate can move to the next match while the tab stays open.
+		// Clear old rows as soon as it becomes unavailable; keep polling for recovery.
+		const estimated = snapshot.roster.source === 'steam_recent_estimate' || roster.source === 'steam_recent_estimate';
+		if (!manualOnly && estimated && snapshot.state !== 'canceled') {
+			if (signature(roster) !== signature(snapshot.roster) || roster.state !== snapshot.roster.state || roster.message !== snapshot.roster.message) {
+				begin({ ...roster, source: roster.source ?? 'steam_recent_estimate' });
+				return;
+			}
+			if (roster.state === 'error' || roster.state === 'unavailable') return;
 		}
 		if (roster.state === 'error' || roster.state === 'unavailable' || signature(roster) !== signature(snapshot.roster)) {
 			validated = false;
@@ -308,6 +323,24 @@ export function createReportController(deps: {
 		polling();
 	});
 	const controller: ReportController = {
+		refreshPlayer(steamId) {
+			if (disposed || !open || !active || !validated || !accountValid() || manualBatches.size || snapshot.state === 'stale' || deps.runtime.canRunReports?.() === false) return;
+			const row = snapshot.rows.find((entry) => entry.player.steamId === steamId);
+			// A loading row already has queued/running work. Reuse the report generation
+			// so other players' responses remain valid, and never duplicate this row's jobs.
+			if (!row || providers.some((provider) => row.providers[provider].status === 'loading')) return;
+			const metrics = emptyMetrics();
+			set({
+				...snapshot,
+				state: 'loading',
+				message: undefined,
+				rows: snapshot.rows.map((entry) => entry === row
+					? { ...row, metrics, assessment: assess(metrics), providers: { leetify: loading(), faceit: loading(), steam: loading() } }
+					: entry),
+			});
+			queue.push(...providers.map((provider) => ({ generation, provider, steamId })));
+			pump();
+		},
 		async scan() {
 			if (disposed) return;
 			if (deps.runtime.canRunReports?.() === false) {
@@ -317,6 +350,7 @@ export function createReportController(deps: {
 			clearQueue();
 			const token = generation;
 			open = true;
+			manualOnly = false;
 			active = true;
 			validated = false;
 			account = deps.runtime.currentUserId();
@@ -329,9 +363,9 @@ export function createReportController(deps: {
 			}
 			begin(roster);
 		},
-		async addProfiles(text) {
+		async addProfiles(text, mode = 'append') {
 			if (disposed || !open) return;
-			if (!active || snapshot.state === 'stale' || deps.runtime.canRunReports?.() === false) {
+			if (!active || (snapshot.state === 'stale' && mode !== 'replace') || deps.runtime.canRunReports?.() === false) {
 				set({ ...snapshot, inputErrors: ['Refresh the report in the active overlay before adding profiles.'] });
 				return;
 			}
@@ -351,13 +385,18 @@ export function createReportController(deps: {
 				cancelCells('stale', 'Steam account changed. Refresh report.', true);
 				return;
 			}
-			const players = new Map(original.players.map((p) => [p.steamId, p]));
+			if (mode === 'replace' && (resolved.errors.length || !resolved.players.length)) {
+				set({ ...snapshot, inputErrors: resolved.errors.length ? resolved.errors : ['Paste at least one Steam profile or ID to replace the list.'] });
+				return;
+			}
+			const players = new Map((mode === 'replace' ? [] : original.players).map((p) => [p.steamId, p]));
 			for (const player of resolved.players) if (!players.has(player.steamId)) players.set(player.steamId, player);
 			if (players.size > MAX_PLAYERS) {
 				set({ ...snapshot, inputErrors: ['Report limit: 128 players.'] });
 				return;
 			}
-			begin({ ...original, players: [...players.values()] }, resolved.errors);
+			if (mode === 'replace') manualOnly = true;
+			begin({ ...(mode === 'replace' ? emptyRoster(deps.now()) : original), state: players.size ? 'ready' : original.state, players: [...players.values()] }, resolved.errors);
 		},
 		cancel() {
 			cancelCells('canceled');

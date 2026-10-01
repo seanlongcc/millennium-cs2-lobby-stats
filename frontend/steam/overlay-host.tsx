@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react';
-import * as Native from '@steambrew/client';
+import * as client from '@steambrew/client';
 import { classMapList, constSysfsExpr, DialogButtonSecondary, IconsModule } from '@steambrew/client';
 import { createRoot, type Root } from 'react-dom/client';
 import type { OverlayHost, SteamRuntime } from './runtime';
@@ -22,14 +22,13 @@ export function startOverlayHosts(runtime: SteamRuntime, onScan: (host: OverlayH
 	return reconcileOverlayHosts(
 		runtime,
 		(host) => {
-			const missing = nativeComponentErrors(Native);
+			const missing = nativeComponentErrors(client);
 			// Resolve the active Steam CSS module instead of pinning version-specific hashes.
 			const toolbarStyles = classMapList.filter((classes) => classes.Toolbar && classes.ToolbarContainer && classes.ToolbarButton);
 			if (!toolbarStyles.length) missing.push('Steam overlay toolbar styles unavailable.');
 			if (!IconsModule?.Search) missing.push('Steam search icon unavailable.');
 			if (runtime.canRunReports?.() === false) missing.push(...(runtime.compatibilityErrors?.() ?? ['Steam lifecycle unavailable.']));
 			if (typeof createRoot !== 'function') missing.push('Steam React root unavailable.');
-			if (typeof Native.showModal !== 'function') missing.push('Steam modal API unavailable.');
 			if (missing.length) throw Error(missing.join(' '));
 			const container = host.window.document.createElement('div');
 			container.dataset.cs2TrackerButton = '';

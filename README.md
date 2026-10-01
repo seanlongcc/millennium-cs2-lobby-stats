@@ -2,10 +2,11 @@
 
 A Windows Steam Millennium plugin built on [Shightrox's CS2 Profile Stats](https://github.com/Shightrox/millennium-cs2-profile-stats). Open CS2's **Shift+Tab** overlay and select **Scan players** for an on-demand report of public player history.
 
-- Quick review with Leetify Rating, Aim, Time to Damage and recent derived K/D.
+- A local report tab in Steam’s built-in overlay browser, with the Quick review roster and player inspector.
+- Quick review with Leetify Rating, Aim, Time to Damage and derived K/D over the latest 30 games tracked by Leetify.
 - Profile tabs: **Leetify → CSStats → FACEIT → Steam**.
 - Leetify metrics retain their original units. CSStats is an external profile link; CSRep and CSTracker are persistent site links.
-- Highlighting uses one labeled plugin rule: recent Leetify K/D ≥ 2.00 across at least 20 valid matches. This is not a Leetify benchmark or proof of cheating. The public API does not supply verified benchmark cutoffs.
+- Highlighting uses three independent plugin rules: Leetify Aim ≥ 97, Time to Damage ≤ 475 ms (including exactly 475), or K/D ≥ 2.00 across at least 20 valid matches within the latest 30 tracked games. Aim 97+ is labeled “Suspicious aim” and Time to Damage at or below 475 ms is labeled “Suspicious Time to Damage”, even when recent K/D is unavailable; each flagged metric shows its own reason. Missing or invalid timing values do not trigger the rule. These are plugin thresholds, not Leetify benchmarks or proof of cheating. The public API does not supply verified benchmark cutoffs.
 - Community rosters up to 128 unique human IDs. Coverage stays unverified; Steam may omit players. **Add profile links** supplements the roster.
 - Team sections are supported when assignments are verified. Steam's inspected current-player feed has no team data, so the initial adapter shows **Team unknown**.
 - Original Steam Community profile cards, Premier, FACEIT, Steam activity, optional SCOPE fallback and optional Leetify key are preserved. Bulk reports skip SCOPE and inventory lookups.
@@ -32,9 +33,15 @@ To roll back, close Steam, move the current `cs2-lobby-stats` directory aside, a
 
 ## Report controls
 
-**Refresh report** always captures a fresh roster and removes manual additions. Provider results arrive independently. **Cancel** stops queued lookups; **Close** releases the report. Reopening Shift+Tab checks the roster before accepting pending results. A changed roster requires an explicit refresh.
+The report opens in the clicked CS2 overlay’s built-in browser. Its HTML and styles are packaged locally; no report website or external browser is required. Provider links open browser tabs.
 
-Paste SteamID64, `[U:1:accountid]`, `STEAM_0/1:X:Y`, or HTTPS Steam Community `/profiles/` and `/id/` links. Input is limited to 32 KiB and 128 unique players. Bots have no public human profile. Unsupported, private and missing data stay neutral. Extra calculation notes are under **Data details**.
+Steam's `GetCoplayData().currentUsers` was frozen across multiple live matches. For official Competitive/Premier, scans now estimate the roster from the newest two-minute group in `recentUsers`, plus the signed-in player and friends sharing their Steam party. The union of recent players and known party members must total ten, and latest activity must be under two hours old. Party members who are not Steam friends can come from recent activity; Steam need not expose their party presence separately. Observed lobby/map transitions reject older entries. This is labelled **Estimated match**, not verified scoreboard data: Steam supplies no match ID, and closely spaced matches, reconnects or missing friends can still prevent or confuse detection. Other modes retain the explicitly unverified Steam current-player source.
+
+If the estimate is wrong or unavailable, use **Add profile links → Replace list** with links from your scoreboard. **Add players** appends; **Refresh report** reads Steam again. Profile pictures and display names come from Steam's persona cache, with initials as a fallback.
+
+Each player has a **Refresh** button that reloads only their Leetify, FACEIT and Steam results, keeping the roster, other players and selected provider tab in place. It is disabled while that player is loading or the roster is stale, and respects provider cooldowns. **Refresh report** always captures a fresh roster and removes manual additions. Provider results arrive independently. **Cancel** stops queued lookups; **Close** releases the report. Reopening Shift+Tab checks the roster before accepting pending results. Estimated match rosters update automatically while the report is open and the overlay is visible; leaving a match clears old players. Other roster sources require an explicit refresh when changed.
+
+Paste SteamID64, `[U:1:accountid]`, `STEAM_0/1:X:Y`, Steam Community `/profiles/` and `/id/` links, or a bare custom profile name. Links also work without `https://`, and `/id/name` is accepted; resolution always uses Steam over HTTPS. The input panel matches the report width; its **×** button or **Escape** closes it while preserving your draft. Input is limited to 32 KiB and 128 unique players. Bots have no public human profile. Unsupported, private and missing data stay neutral. K/D sums kills and deaths from valid records inside the latest 30 tracked games; it shows the actual sample (such as 20/30) if fewer are available and never fills gaps with older games. FACEIT lifetime K/D remains separately labelled. Extra calculation notes are under **Data details**.
 
 The only new setting is **Highlight unusual stats**. Existing Leetify API key and profile display settings remain available. No key is mandatory; the public providers may impose stricter anonymous rate limits.
 
@@ -54,16 +61,16 @@ Node 24, pnpm 10.33.1 and Lua 5.4:
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm build
 pnpm test
 pnpm typecheck
 pnpm typecheck:tests
 pnpm check:lua
 lua5.4 tests/lua/run.lua
-pnpm build
 ```
 
 On Windows: `powershell -File scripts/package.ps1 -SkipBuild` after building.
 Validate an extracted release with `node scripts/verify-package.mjs <path>/cs2-lobby-stats`.
-The build excludes tests, docs, mockups and development dependencies.
+The build excludes tests, docs, mockups and development dependencies. Run it before tests: the IPC smoke test executes the compiled frontend to catch missing plugin IDs. Keep `@steambrew/client` namespace imports named `client`; TTC 3.3 uses that name when injecting plugin IDs into IPC and configuration calls.
 
 MIT license. Original work © Shightrox; upstream provenance is recorded in [UPSTREAM.md](UPSTREAM.md). Leetify data is attributed in the report and linked back to Leetify.

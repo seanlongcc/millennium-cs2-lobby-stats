@@ -42,3 +42,13 @@ Pair color with readable labels and icons. Target WCAG AA contrast, visible keyb
 Scene: a player in a dim room opens Steam's dark overlay during a brief break in a CS2 match and needs a calm, low-glare report before returning to play. This calls for opaque dark surfaces and restrained action color, with amber reserved for unusual-stat evidence.
 
 The proposed design spec is `docs/superpowers/specs/2026-09-30-cs2-server-report-design.md`. Steam-native appearance and component reuse are mandatory. Production must inherit Steam's typography, controls, surfaces, focus treatment, and theme rather than recreate them with plugin CSS. Inline mockups approximate appearance outside Steam; their HTML and CSS are not production components. Quick review is the selected visual direction. The revised preview uses synthetic teams and data; it does not prove automatic team discovery, benchmark availability, or approval of product implementation.
+
+## Browser report correction, 2026-09-30
+
+The user requested the selected mockup layout and opening the report in Steam's
+built-in browser instead of a modal. The report now uses a local packaged HTML
+page in the overlay browser. This explicitly supersedes the native React-only
+constraint for the report page: Steam's browser WebKit context does not expose
+Steam React components. Launcher and settings remain native Steam components.
+The browser renderer follows Quick review's compact roster, inspector and tabs.
+The original mockup remains a synthetic visual reference, not live player data.

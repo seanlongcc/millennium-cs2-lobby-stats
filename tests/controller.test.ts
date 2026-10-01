@@ -115,6 +115,32 @@ it('uses a new scan ID for an identical roster and deduplicates unfinished keys'
 	expect(h.controller.getSnapshot().id).toBeGreaterThan(old);
 	expect(h.jobs).toHaveLength(2);
 });
+it('replaces stale Steam players with a manual roster and keeps it through polling and overlay resume', async () => {
+	const h = harness(2);
+	await h.controller.scan();
+	await h.controller.addProfiles('https://steamcommunity.com/profiles/76561199249862155/', 'replace');
+	expect(h.controller.getSnapshot().rows.map((r) => r.player.steamId)).toEqual(['76561199249862155']);
+	h.roster([3, 4]);
+	await vi.advanceTimersByTimeAsync(5000);
+	expect(h.controller.getSnapshot().state).not.toBe('stale');
+	h.activation(false);
+	h.activation(true);
+	await flush();
+	expect(h.controller.getSnapshot().state).not.toBe('stale');
+	await h.controller.addProfiles('[U:1:90]');
+	expect(h.controller.getSnapshot().rows).toHaveLength(2);
+	await h.controller.scan();
+	expect(h.controller.getSnapshot().rows.map((r) => r.player.steamId)).toEqual(['76561197960265731', '76561197960265732']);
+});
+it('does not clear the existing roster when replacement input is empty or invalid', async () => {
+	const h = harness(1);
+	await h.controller.scan();
+	await h.controller.addProfiles('', 'replace');
+	expect(h.controller.getSnapshot().rows).toHaveLength(1);
+	expect(h.controller.getSnapshot().inputErrors?.length).toBeGreaterThan(0);
+	await h.controller.addProfiles('https://example.com/no-player', 'replace');
+	expect(h.controller.getSnapshot().rows).toHaveLength(1);
+});
 it('holds timed-out IPC slots until promises actually settle, even after close and reopen', async () => {
 	const h = harness();
 	await h.controller.scan();
@@ -350,4 +376,95 @@ it('finishes all queued cells when a hung vanity request and provider occupy bot
 	done('76561197960265790');
 	await flush();
 	expect(h.jobs).toHaveLength(2);
+});
+it('updates estimated match rosters while open and discards old-player responses', async () => {
+	const h = harness();
+	h.setUser('76561197960266228');
+	let start = 1000;
+	let state = 'game';
+	const recent = (offset: number) => ({ currentUsers: [{ appid: 730, accountid: 1 }], recentUsers: Array.from({ length: 9 }, (_, i) => ({ appid: 730, accountid: i + offset, rtTimePlayed: 1 })) });
+	let data = recent(100);
+	h.runtime.readCoplay = async () => data;
+	h.runtime.matchContext = () => ({ state, mode: 'competitive', server: 'kv', map: 'de_mirage', partyIds: ['76561197960266228'], partySize: 1, notBefore: 0, key: String(start) });
+	// Controller copies runtime methods on creation, so use its existing read function
+	// through a fresh instance for this integration case.
+	const controller = createReportController({ runtime: h.runtime, fetch: h.fetch, resolveVanity: async () => '', now: Date.now });
+	cleanups.push(() => controller.dispose());
+	await controller.scan();
+	expect(controller.getSnapshot().rows).toHaveLength(10);
+	data = recent(200);
+	start++;
+	await vi.advanceTimersByTimeAsync(5000);
+	expect(controller.getSnapshot().rows[0].player.steamId).toBe('76561197960265928');
+	h.jobs[0].resolve(ok({ name: 'Old match' }));
+	await flush();
+	expect(controller.getSnapshot().rows.every(r => r.metrics.name !== 'Old match')).toBe(true);
+	expect(h.max()).toBe(2);
+	state = 'lobby';
+	await vi.advanceTimersByTimeAsync(5000);
+	expect(controller.getSnapshot().rows).toEqual([]);
+});
+it('does not interrupt initial capture when overlay activation arrives before coplay resolves', async () => {
+	const h = harness(1);
+	let resolve!: (value: unknown) => void;
+	h.runtime.readCoplay = () => new Promise(r => { resolve = r; });
+	const scan = h.controller.scan();
+	await flush();
+	h.activation(true);
+	await flush();
+	resolve({ currentUsers: [{ appid: 730, accountid: 9 }] });
+	await scan;
+	expect(h.controller.getSnapshot().rows.map(r => r.player.steamId)).toEqual(['76561197960265737']);
+	expect(h.controller.getSnapshot().state).not.toBe('stale');
+});
+it('refreshes only the requested player without recapturing the roster or replacing other rows', async () => {
+	const h = harness(2);
+	await h.controller.scan();
+	for (let i = 0; i < 6; i++) {
+		for (const job of h.jobs.filter(j => !j.done)) job.resolve(ok({ name: `Original ${job.id}`, cs2Hours: 123 }));
+		await flush();
+	}
+	const before = h.controller.getSnapshot();
+	const rosterReads = vi.mocked(h.runtime.readCoplay).mock.calls.length;
+	h.controller.refreshPlayer('76561197960265729');
+	h.controller.refreshPlayer('76561197960265729'); // A double click must not duplicate work.
+	await flush();
+	const pending = h.controller.getSnapshot();
+	expect(pending.id).toBe(before.id);
+	expect(pending.roster).toBe(before.roster);
+	expect(pending.rows[1]).toBe(before.rows[1]);
+	expect(Object.values(pending.rows[0].providers).every(p => p.status === 'loading')).toBe(true);
+	for (let i = 0; i < 4; i++) {
+		for (const job of h.jobs.filter(j => !j.done)) job.resolve(ok({ name: 'Refreshed', cs2Hours: 456 }));
+		await flush();
+	}
+	expect(h.jobs.slice(6).map(j => [j.id, j.provider])).toEqual([
+		['76561197960265729', 'leetify'], ['76561197960265729', 'faceit'], ['76561197960265729', 'steam'],
+	]);
+	expect(h.controller.getSnapshot().rows[0].metrics.cs2Hours).toBe(456);
+	expect(h.controller.getSnapshot().rows[1]).toBe(before.rows[1]);
+	expect(h.controller.getSnapshot().state).toBe('complete');
+	expect(h.runtime.readCoplay).toHaveBeenCalledTimes(rosterReads);
+	expect(h.max()).toBe(2);
+});
+it('individual refresh respects provider cooldowns and refuses unknown or stale players', async () => {
+	const h = harness(1);
+	await h.controller.scan();
+	h.jobs.find(j => j.provider === 'leetify')!.resolve({ status: 'rate_limited', data: null, fetchedAt: null, retryAfterMs: 60000 });
+	for (let i = 0; i < 4; i++) {
+		for (const job of h.jobs.filter(j => !j.done)) job.resolve(ok());
+		await flush();
+	}
+	h.controller.refreshPlayer('76561197960265799');
+	expect(h.jobs).toHaveLength(3);
+	h.controller.refreshPlayer('76561197960265729');
+	await flush();
+	expect(h.jobs.filter(j => j.provider === 'leetify')).toHaveLength(1);
+	expect(h.controller.getSnapshot().rows[0].providers.leetify.status).toBe('rate_limited');
+	expect(h.jobs.slice(3).map(j => j.provider)).toEqual(['faceit', 'steam']);
+	h.roster([2]);
+	await vi.advanceTimersByTimeAsync(5000);
+	const stale = h.controller.getSnapshot();
+	h.controller.refreshPlayer('76561197960265729');
+	expect(h.controller.getSnapshot()).toBe(stale);
 });

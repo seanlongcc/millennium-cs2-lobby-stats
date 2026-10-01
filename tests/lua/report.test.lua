@@ -30,6 +30,27 @@ end)
 test('all-zero deaths never produce infinite K/D',function()
  reset({{status=200,body=profile()},{status=200,body=games(true)}});local r=report.fetch('leetify',id);eq(r.data.stats.kd,nil);eq(r.data.stats.kd_matches,20)
 end)
+test('public K/D selects the newest 30 games before skipping invalid stats',function()
+ local history={}
+ for i=1,32 do history[i]={stats={{steam64_id=id,total_kills=i<=2 and 1000 or 20,total_deaths=10}}} end
+ -- Break date ties explicitly and return oldest first to catch order assumptions.
+ for i=1,32 do history[i].finished_at=string.format('2026-09-%02dT%02d:00:00Z',math.ceil(i/2),i%2==1 and 10 or 12) end
+ reset({{status=200,body=profile()},{status=200,body=history}})
+ local r=report.fetch('leetify',id);eq(r.data.stats.kd,2);eq(r.data.stats.kd_matches,30)
+ history[32].stats[1].total_deaths=nil
+ reset({{status=200,body=profile()},{status=200,body=history}})
+ r=report.fetch('leetify',id);eq(r.data.stats.kd,2);eq(r.data.stats.kd_matches,29)
+end)
+test('legacy K/D uses newest 30 games independently of the other rating window',function()
+ local history={}
+ for i=1,32 do history[i]={gameFinishedAt=string.format('2026-09-%02dT%02d:00:00Z',math.ceil(i/2),i%2==1 and 10 or 12),kills=i<=2 and 1000 or 20,deaths=10} end
+ local legacy={meta={name='Legacy'},recentGameRatings={aim=95,gamesPlayed=5},games=history}
+ reset({{status=404},{status=200,body=legacy}})
+ local r=report.fetch('leetify',id);eq(r.data.stats.kd,2);eq(r.data.stats.kd_matches,30)
+ history[32].deaths=-1
+ reset({{status=404},{status=200,body=legacy}})
+ r=report.fetch('leetify',id);eq(r.data.stats.kd,2);eq(r.data.stats.kd_matches,29)
+end)
 test('legacy fallback checks privacy and preserves profile shape without bulk SCOPE',function()
  reset({{status=404},{status=200,body={meta={privacyMode='private'},recentGameRatings={aim=95},games={}}}});eq(report.fetch('leetify',id).status,'private');eq(#calls,2)
  reset({{status=404},{status=200,body={meta={name='Legacy'},recentGameRatings={aim=95,leetify=0.02,gamesPlayed=20},games={}}}});local r=report.fetch('leetify',id);eq(r.status,'ok');eq(r.data.rating.aim,95);eq(r.data.ranks.leetify,2);eq(#calls,2)

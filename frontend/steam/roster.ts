@@ -1,5 +1,5 @@
 import type { PlayerIdentity, RosterSnapshot, SteamId, TeamGroup } from '../../shared/report';
-import type { SteamRuntime } from './runtime';
+import type { SteamMatchContext, SteamRuntime } from './runtime';
 export const MAX_PLAYERS = 128;
 export const validSteamId = (id: unknown): id is SteamId =>
 	typeof id === 'string' && /^\d{17}$/.test(id) && BigInt(id) > 76561197960265728n && BigInt(id) <= 76561202255233023n;
@@ -41,6 +41,48 @@ export function normalizeCoplay(raw: unknown, selfId: SteamId | null, now: numbe
 	if (players.size > MAX_PLAYERS) return emptyRoster(now, 'error', 'Report limit: 128 players.');
 	return { ...emptyRoster(now, players.size ? 'ready' : 'empty'), players: [...players.values()], rejectedCount };
 }
+// Steam gives coplay timestamps, not a match ID. This is a deliberately labelled
+// estimate: accept an entire recent cohort, never truncate history to nine names.
+const COHORT_SECONDS = 120;
+const MAX_AGE_SECONDS = 2 * 60 * 60;
+export function normalizeMatchCoplay(raw: unknown, selfId: SteamId | null, now: number, context: SteamMatchContext | null): RosterSnapshot {
+	const unavailable = (message: string): RosterSnapshot => ({ ...emptyRoster(now, 'unavailable', message), source: 'steam_recent_estimate' });
+	if (!context || !validSteamId(selfId) || !context.state) return unavailable('Steam match presence unavailable. Retry or add profile links.');
+	if (context.state !== 'game') return { ...emptyRoster(now, 'empty', 'Steam does not report an active CS2 match.'), source: 'steam_recent_estimate' };
+	// Keep larger/community rosters on the original, explicitly unverified source.
+	if (context.mode !== 'competitive' || context.server !== 'kv') return { ...normalizeCoplay(raw, selfId, now), source: 'steam_current' };
+	// Steam exposes rich presence for friends, not necessarily every party member.
+	// Non-friend party members can be in recentUsers; the union below must still be ten.
+	if (!context.map || !Number.isInteger(context.partySize) || context.partySize < 1 || context.partySize > 5 ||
+		!context.partyIds.includes(selfId) || context.partyIds.length > context.partySize)
+		return unavailable('Steam party information is incomplete. Retry or add profile links.');
+	const recent = raw && typeof raw === 'object' ? (raw as { recentUsers?: unknown }).recentUsers : null;
+	if (!Array.isArray(recent)) return unavailable('Steam recent-player data unavailable. Retry or add profile links.');
+	const times = new Map<SteamId, number>();
+	for (const entry of recent) {
+		if (!entry || typeof entry !== 'object') continue;
+		const { appid, accountid, rtTimePlayed: time } = entry;
+		if (appid !== 730 || !Number.isInteger(accountid) || accountid < 1 || accountid > 4294967295 ||
+			!Number.isInteger(time) || time <= 0 || time > now / 1000) continue;
+		const id = String(76561197960265728n + BigInt(accountid));
+		if (context.partyIds.includes(id)) continue;
+		times.set(id, Math.max(time, times.get(id) ?? 0));
+	}
+	const latest = Math.max(0, ...times.values());
+	if (!latest || now / 1000 - latest > MAX_AGE_SECONDS) return unavailable('No fresh Steam player group available. Retry or add profile links.');
+	const cohort = [...times].filter(([, time]) => latest - time <= COHORT_SECONDS);
+	if (cohort.length + context.partyIds.length !== 10 || cohort.some(([, time]) => time * 1000 < context.notBefore))
+		return unavailable('Steam’s newest player group is incomplete or ambiguous. Retry when players finish joining, or replace the list with profile links.');
+	return {
+		...emptyRoster(now, 'ready'),
+		source: 'steam_recent_estimate',
+		observedAt: latest * 1000,
+		contextKey: context.key,
+		players: [...cohort.map(([id]) => id), ...context.partyIds].map(id => identity(id, id === selfId ? 'self' : 'steam')),
+		message: 'Estimated from Steam’s newest recent-player group and your party. Check against the scoreboard; Steam does not provide a match ID.',
+	};
+}
+
 export async function withDeadline<T>(promise: Promise<T>, ms: number, signal?: AbortSignal): Promise<T> {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let onAbort: (() => void) | undefined;
@@ -64,7 +106,11 @@ export async function withDeadline<T>(promise: Promise<T>, ms: number, signal?: 
 }
 export async function captureRoster(runtime: SteamRuntime, now: () => number, signal?: AbortSignal): Promise<RosterSnapshot> {
 	try {
-		return normalizeCoplay(await withDeadline(runtime.readCoplay(), 5000, signal), runtime.currentUserId(), now());
+		const raw = await withDeadline(runtime.readCoplay(), 5000, signal);
+		const capturedAt = now();
+		return runtime.matchContext
+			? normalizeMatchCoplay(raw, runtime.currentUserId(), capturedAt, runtime.matchContext(capturedAt))
+			: normalizeCoplay(raw, runtime.currentUserId(), capturedAt);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'Could not read current players.';
 		return emptyRoster(now(), /unavailable on this Steam version/.test(message) ? 'unavailable' : 'error', message);

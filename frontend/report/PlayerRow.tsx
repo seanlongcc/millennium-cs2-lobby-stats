@@ -1,5 +1,6 @@
 import { DialogBodyText, DialogButtonSecondary, Field, Focusable } from '@steambrew/client';
 import type { ReportRow } from '../../shared/report';
+import { assessmentSummary } from '../../shared/assessment';
 export const value = (n: number | null | undefined, digits = 0, suffix = '') => (n == null ? 'Unavailable' : `${n.toFixed(digits)}${suffix}`);
 export function PlayerRow({ row, highlightEnabled, selected = false, onSelect }: { row: ReportRow; highlightEnabled: boolean; selected?: boolean; onSelect?: () => void }) {
 	const m = row.metrics,
@@ -15,7 +16,7 @@ export function PlayerRow({ row, highlightEnabled, selected = false, onSelect }:
 					</DialogButtonSecondary>
 				}
 			>
-				{flag && <DialogBodyText>High K/D</DialogBodyText>}
+				{flag && <DialogBodyText>{assessmentSummary(row.assessment)}</DialogBodyText>}
 			</Field>
 			<Focusable className="cs2-tracker-overview">
 				<Field padding="compact" label="Leetify Rating">
@@ -27,7 +28,7 @@ export function PlayerRow({ row, highlightEnabled, selected = false, onSelect }:
 				<Field padding="compact" label="Time to Damage">
 					<DialogBodyText>{value(m.timeToDamageMs, 0, ' ms')}</DialogBodyText>
 				</Field>
-				<Field padding="compact" label="Recent K/D">
+				<Field padding="compact" label="K/D · Last 30 games">
 					<DialogBodyText>
 						{value(m.recentKd, 2)}
 						{m.recentMatches !== null ? ` · ${m.recentMatches} matches` : ''}

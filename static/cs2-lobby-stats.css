@@ -1,5 +1,8 @@
 .cs2-tracker-toolbar-slot { display: contents; }
 .cs2-tracker-scan-button.DialogButton { min-width: 0; padding: 0; flex-shrink: 0; }
+.cs2-tracker-scan-button { position: relative; overflow: visible; }
+.cs2-tracker-scan-button::after { content: attr(aria-label); position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); padding: 7px 10px; border: 1px solid #47515e; border-radius: 3px; background: #232a33; color: #fff; font: 13px/1.3 Arial, sans-serif; white-space: nowrap; pointer-events: none; opacity: 0; z-index: 10; }
+.cs2-tracker-scan-button:hover::after, .cs2-tracker-scan-button:focus-visible::after { opacity: 1; }
 .cs2-tracker-report { width: min(1120px, calc(100vw - 80px)); max-height: calc(100vh - 80px); display: flex; flex-direction: column; gap: 8px; }
 .cs2-tracker-actions, .cs2-tracker-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .cs2-tracker-columns { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; min-height: 0; overflow: auto; }

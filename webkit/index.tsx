@@ -1,4 +1,6 @@
 import { callable, constSysfsExpr, Millennium } from '@steambrew/webkit';
+import { isReportPage, mountBrowserReport } from './report';
+import { SUSPICIOUS_AIM_THRESHOLD, SUSPICIOUS_TTD_THRESHOLD_MS, suspiciousTimeToDamage, validAim } from '../shared/assessment';
 
 const styles = constSysfsExpr('cs2-profile-stats.css', {
 	basePath: '../static',
@@ -121,8 +123,7 @@ const getPreferences = callable<[], string>('get_preferences');
 const PROVIDER_TIMEOUT_MS = 15_000;
 const STEAM_TIMEOUT_MS = 8_000;
 
-const isProfilePage = () =>
-	window.location.hostname === 'steamcommunity.com' && /^\/(id|profiles)\/[^/]+\/?$/i.test(window.location.pathname);
+const isProfilePage = () => window.location.hostname === 'steamcommunity.com' && /^\/(id|profiles)\/[^/]+\/?$/i.test(window.location.pathname);
 
 const profileBaseUrl = () => {
 	const url = new URL(window.location.href);
@@ -255,14 +256,14 @@ const compactMetric = (icon: MetricIcon, label: string, value: string, modifier 
 
 const aimPresentation = (value: unknown) => {
 	const aim = finiteNumber(value);
-	if (aim === undefined) return { modifier: '', marker: '', label: '' };
+	if (!validAim(aim)) return { modifier: '', marker: '', label: '' };
 	if (aim < 10) return { modifier: 'cs2ps-aim-awful', marker: '💩', label: 'Very low aim rating' };
 	if (aim < 25) return { modifier: 'cs2ps-aim-poor', marker: '🤡', label: 'Low aim rating' };
 	if (aim < 45) return { modifier: 'cs2ps-aim-developing', marker: '😬', label: 'Developing aim rating' };
 	if (aim < 60) return { modifier: 'cs2ps-aim-average', marker: '😐', label: 'Average aim rating' };
 	if (aim < 75) return { modifier: 'cs2ps-aim-good', marker: '👍', label: 'Good aim rating' };
 	if (aim < 85) return { modifier: 'cs2ps-aim-great', marker: '🔥', label: 'Great aim rating' };
-	if (aim <= 92) return { modifier: 'cs2ps-aim-elite', marker: '🎯', label: 'Elite aim rating' };
+	if (aim < SUSPICIOUS_AIM_THRESHOLD) return { modifier: 'cs2ps-aim-elite', marker: '🎯', label: 'Elite aim rating' };
 	return { modifier: 'cs2ps-aim-suspicious', marker: '💀', label: 'Unusually high aim rating' };
 };
 
@@ -369,8 +370,7 @@ const formatDataSource = (value: string | undefined) => {
 	return value.replace(/[_-]+/g, ' ');
 };
 
-const formatScore = (score: number[] | undefined) =>
-	Array.isArray(score) && score.length >= 2 ? `${formatInteger(score[0])}:${formatInteger(score[1])}` : '—';
+const formatScore = (score: number[] | undefined) => (Array.isArray(score) && score.length >= 2 ? `${formatInteger(score[0])}:${formatInteger(score[1])}` : '—');
 
 const renderForm = (matches: LeetifyProfile['recent_matches'] | undefined) => {
 	if (!matches?.length) return '<span class="cs2ps-form-empty">No recent matches</span>';
@@ -395,7 +395,7 @@ const providerState = (provider: 'Leetify' | 'FACEIT', response: ProviderRespons
 const ratingMetadata = (profile: LeetifyProfile) => `
 	<span class="cs2ps-rating-meta">
 		<span><strong>${escapeHtml(formatInteger(profile.total_matches))}</strong> matches</span>
-		${hasValue(profile.stats.kd) ? `<span title="K/D over ${escapeHtml(formatInteger(profile.stats.kd_matches))} recent tracked matches"><strong>${escapeHtml(formatMetric(profile.stats.kd, 2))}</strong> K/D</span>` : ''}
+		${hasValue(profile.stats.kd) ? `<span title="K/D over ${escapeHtml(formatInteger(profile.stats.kd_matches))} valid games from the latest 30 tracked games"><strong>${escapeHtml(formatMetric(profile.stats.kd, 2))}</strong> K/D</span>` : ''}
 	</span>
 `;
 
@@ -493,19 +493,23 @@ const renderDetails = (state: ViewState, steamId: string) => {
 				hasValue(leetify.stats.preaim) ? detailStat('Preaim', formatMetric(leetify.stats.preaim)) : '',
 				hasValue(leetify.stats.spray_accuracy) ? detailStat('Spray accuracy', formatPercent(leetify.stats.spray_accuracy)) : '',
 				hasValue(leetify.stats.counter_strafing) ? detailStat('Counter-strafing', formatPercent(leetify.stats.counter_strafing)) : '',
-			].filter(Boolean).join('')
+			]
+				.filter(Boolean)
+				.join('')
 		: '';
 	const hasScopeDamageTime = hasValue(leetify?.stats.damage_time_min_ms) && hasValue(leetify?.stats.damage_time_max_ms);
 	const overviewPanel = `
 		<section class="cs2ps-panel ${state.activeTab === 'overview' ? 'cs2ps-panel-active' : ''}" data-panel="overview">
-			${state.leetify.status === 'ok' && leetify
-				? `<div class="cs2ps-panel-heading"><span>Performance details</span><a href="${leetifyUrl}" target="_blank" rel="noopener">Leetify ↗</a></div>
+			${
+				state.leetify.status === 'ok' && leetify
+					? `<div class="cs2ps-panel-heading"><span>Performance details</span><a href="${leetifyUrl}" target="_blank" rel="noopener">Leetify ↗</a></div>
 					${supplementalStats ? `<div class="cs2ps-detail-stats">${supplementalStats}</div>` : '<p class="cs2ps-detail-note">No additional public metrics for this player.</p>'}
 					<div class="cs2ps-sources">
 						<a class="cs2ps-leetify-attribution" href="https://leetify.com/" target="_blank" rel="noopener"><img src="${leetifyBadge}" alt="Data Provided by Leetify"></a>
 						${hasScopeDamageTime && leetify.stats.damage_time_source_url ? `<a class="cs2ps-scope-source" href="${escapeHtml(leetify.stats.damage_time_source_url)}" target="_blank" rel="noopener">AWP timing · SCOPE.GG ↗</a>` : ''}
 					</div>`
-				: providerState('Leetify', state.leetify)}
+					: providerState('Leetify', state.leetify)
+			}
 		</section>
 	`;
 	const matchesPanel = leetify?.recent_matches.length
@@ -521,11 +525,14 @@ const renderDetails = (state: ViewState, steamId: string) => {
 				hasValue(faceit.stats.headshots) ? detailStat('HS', faceit.stats.headshots!) : '',
 				hasValue(faceit.stats.winrate) ? detailStat('Win rate', faceit.stats.winrate!) : '',
 				hasValue(faceit.stats.matches) ? detailStat('Matches', faceit.stats.matches!) : '',
-			].filter(Boolean).join('')
+			]
+				.filter(Boolean)
+				.join('')
 		: '';
-	const faceitPanel = state.faceit.status === 'ok' && faceit
-		? `<section class="cs2ps-panel ${state.activeTab === 'faceit' ? 'cs2ps-panel-active' : ''}" data-panel="faceit"><div class="cs2ps-panel-heading"><span>${escapeHtml(faceit.nickname || 'FACEIT player')}</span>${faceitUrl ? `<a href="${faceitUrl}" target="_blank" rel="noopener">FACEIT ↗</a>` : ''}</div><div class="cs2ps-detail-stats">${faceitStats}</div></section>`
-		: '';
+	const faceitPanel =
+		state.faceit.status === 'ok' && faceit
+			? `<section class="cs2ps-panel ${state.activeTab === 'faceit' ? 'cs2ps-panel-active' : ''}" data-panel="faceit"><div class="cs2ps-panel-heading"><span>${escapeHtml(faceit.nickname || 'FACEIT player')}</span>${faceitUrl ? `<a href="${faceitUrl}" target="_blank" rel="noopener">FACEIT ↗</a>` : ''}</div><div class="cs2ps-detail-stats">${faceitStats}</div></section>`
+			: '';
 	const steamPanel = state.preferences.show_steam_details
 		? `<section class="cs2ps-panel ${state.activeTab === 'steam' ? 'cs2ps-panel-active' : ''}" data-panel="steam"><div class="cs2ps-detail-list">${detailedRow('CS2 hours', state.steam.hours || 'Private')}${detailedRow('Last 2 weeks', state.steam.recentHours || (state.steam.status === 'loading' ? 'Loading…' : 'Private'))}${detailedRow('Member since', state.steam.memberSince || (state.steam.status === 'loading' ? 'Loading…' : 'Unknown'))}</div>${renderInventoryValue(state.inventory, steamId)}</section>`
 		: '';
@@ -550,6 +557,7 @@ const renderCard = (root: HTMLElement, state: ViewState, steamId: string) => {
 		? formatSecondsRange(leetify?.stats.damage_time_min_ms, leetify?.stats.damage_time_max_ms)
 		: formatMilliseconds(leetify?.stats.reaction_time_ms);
 	const aimStyle = aimPresentation(leetify?.rating.aim);
+	const suspiciousTtd = !hasScopeDamageTime && suspiciousTimeToDamage(leetify?.stats.reaction_time_ms);
 	const faceitLevel = finiteNumber(faceit?.level) ?? finiteNumber(leetify?.ranks.faceit);
 	const faceitStatus = faceitFound
 		? { modifier: 'cs2ps-faceit-found', text: 'FACEIT' }
@@ -558,27 +566,30 @@ const renderCard = (root: HTMLElement, state: ViewState, steamId: string) => {
 			: state.faceit.status === 'not_found'
 				? { modifier: 'cs2ps-faceit-missing', text: 'No FACEIT account' }
 				: { modifier: 'cs2ps-faceit-unknown', text: 'FACEIT status unavailable' };
-	const emptyMessage = state.leetify.status === 'not_found'
-		? 'Leetify has no public matches for this Steam account.'
-		: state.leetify.status === 'private'
-			? 'This player’s Leetify profile is private.'
-			: statusMessage('Leetify', { ...state.leetify, message: undefined });
-	const subtitle = hasPerformanceData && leetify?.total_matches !== undefined
-		? `${formatInteger(leetify.total_matches)} tracked matches`
-		: state.leetify.status === 'loading'
-			? 'Loading public stats…'
-			: hasPerformanceData
-				? 'Public performance summary'
-				: 'Public profile overview';
-	const performanceSummary = state.leetify.status === 'loading'
-		? '<div class="cs2ps-loading-summary"><span class="cs2ps-spinner"></span><span>Loading CS2 performance…</span></div>'
-		: !hasPerformanceData || !leetify
-			? `<div class="cs2ps-empty-state"><span class="cs2ps-empty-icon">${metricIcon('aim')}</span><span class="cs2ps-empty-copy"><strong>No tracked CS2 performance data</strong><span>${escapeHtml(emptyMessage)}</span>${state.steam.hours ? `<small>Steam playtime: ${escapeHtml(state.steam.hours)} h</small>` : ''}</span></div>`
-			: `
+	const emptyMessage =
+		state.leetify.status === 'not_found'
+			? 'Leetify has no public matches for this Steam account.'
+			: state.leetify.status === 'private'
+				? 'This player’s Leetify profile is private.'
+				: statusMessage('Leetify', { ...state.leetify, message: undefined });
+	const subtitle =
+		hasPerformanceData && leetify?.total_matches !== undefined
+			? `${formatInteger(leetify.total_matches)} tracked matches`
+			: state.leetify.status === 'loading'
+				? 'Loading public stats…'
+				: hasPerformanceData
+					? 'Public performance summary'
+					: 'Public profile overview';
+	const performanceSummary =
+		state.leetify.status === 'loading'
+			? '<div class="cs2ps-loading-summary"><span class="cs2ps-spinner"></span><span>Loading CS2 performance…</span></div>'
+			: !hasPerformanceData || !leetify
+				? `<div class="cs2ps-empty-state"><span class="cs2ps-empty-icon">${metricIcon('aim')}</span><span class="cs2ps-empty-copy"><strong>No tracked CS2 performance data</strong><span>${escapeHtml(emptyMessage)}</span>${state.steam.hours ? `<small>Steam playtime: ${escapeHtml(state.steam.hours)} h</small>` : ''}</span></div>`
+				: `
 				${renderRating(leetify)}
 				<div class="cs2ps-summary-grid">
 					${compactMetric('aim', 'Aim', formatMetric(leetify.rating.aim), aimStyle.modifier, aimStyle.marker, aimStyle.label)}
-					${compactMetric('reaction', hasScopeDamageTime ? 'AWP damage' : 'Reaction', reactionValue)}
+					${compactMetric('reaction', hasScopeDamageTime ? 'AWP damage' : 'Time to Damage', reactionValue, suspiciousTtd ? 'cs2ps-ttd-suspicious' : '', suspiciousTtd ? '💀' : '', suspiciousTtd ? `Suspicious Time to Damage (≤ ${SUSPICIOUS_TTD_THRESHOLD_MS} ms)` : '')}
 					${compactMetric('winrate', 'Win rate', formatWinrate(leetify.winrate))}
 				</div>
 				<div class="cs2ps-form-row"><span class="cs2ps-form-label">Last matches</span><div class="cs2ps-form">${renderForm(leetify.recent_matches)}</div></div>
@@ -772,6 +783,15 @@ const injectStyles = () => {
 };
 
 export default async function WebkitMain() {
+	if (isReportPage(window.location)) {
+		const roots = await Millennium.findElement(document, '#cs2-browser-report', 8_000);
+		const root = roots.item(0) as HTMLElement | null;
+		if (root && !root.dataset.mounted) {
+			root.dataset.mounted = 'true';
+			mountBrowserReport(root, window.location.hash.slice(1), leetifyBadge);
+		}
+		return;
+	}
 	if (!isProfilePage() || document.getElementById('cs2-profile-stats')) return;
 
 	injectStyles();

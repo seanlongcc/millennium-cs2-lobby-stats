@@ -264,13 +264,29 @@ local function average_legacy_stat(games, limit, key, multiplier)
     return (total / count) * (multiplier or 1)
 end
 
-local function aggregate_legacy_kd(games, limit)
+local KD_GAME_LIMIT = 30
+local function newest_games(games, date_key)
+    local ordered = {}
+    for index, game in ipairs(games) do
+        local date = type(game) == "table" and game[date_key] or nil
+        ordered[#ordered + 1] = {game = game, index = index, date = type(date) == "string" and date or ""}
+    end
+    -- Both providers use UTC ISO timestamps. Preserve provider order for ties or missing dates.
+    table.sort(ordered, function(a, b)
+        if a.date == b.date then return a.index < b.index end
+        return a.date > b.date
+    end)
+    local recent = {}
+    for index = 1, math.min(#ordered, KD_GAME_LIMIT) do recent[index] = ordered[index].game end
+    return recent
+end
+
+local function aggregate_legacy_kd(games)
     local kills = 0
     local deaths = 0
     local matches = 0
 
-    for index = 1, math.min(#games, limit) do
-        local match = games[index]
+    for _, match in ipairs(newest_games(games, "gameFinishedAt")) do
         local match_kills = type(match) == "table" and number_or_nil(match.kills) or nil
         local match_deaths = type(match) == "table" and number_or_nil(match.deaths) or nil
         if match_kills ~= nil and match_deaths ~= nil and match_deaths >= 0 and match_kills >= 0 and match_kills % 1 == 0 and match_deaths % 1 == 0 then
@@ -299,7 +315,7 @@ local function get_public_recent_kd(steam_id, headers)
     local deaths = 0
     local match_count = 0
 
-    for _, match in ipairs(matches) do
+    for _, match in ipairs(newest_games(matches, "finished_at")) do
         local player_stats = type(match) == "table" and match.stats or nil
         if type(player_stats) == "table" then
             for _, player in ipairs(player_stats) do
@@ -432,7 +448,7 @@ local function normalize_legacy_leetify_profile(profile, steam_id)
     local aggregate_limit = math.min(#games, games_played)
     local wins = 0
     local recent_matches = {}
-    local recent_kd, recent_kd_matches = aggregate_legacy_kd(games, aggregate_limit)
+    local recent_kd, recent_kd_matches = aggregate_legacy_kd(games)
 
     for index = 1, aggregate_limit do
         local match = games[index]

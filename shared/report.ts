@@ -5,6 +5,8 @@ export type TeamGroup = 'your_team' | 'opponents' | 'spectators' | 'unknown' | '
 export type ProviderStatus = 'loading' | 'ok' | 'not_found' | 'private' | 'unauthorized' | 'rate_limited' | 'error' | 'canceled';
 export type PlayerIdentity = {
 	steamId: SteamId;
+	displayName?: string;
+	avatarUrl?: string;
 	origin: 'steam' | 'manual' | 'self';
 	team: TeamGroup;
 	teamSource: 'unavailable' | 'verified_live';
@@ -12,6 +14,9 @@ export type PlayerIdentity = {
 };
 export type RosterSnapshot = {
 	capturedAt: number;
+	source?: 'steam_current' | 'steam_recent_estimate';
+	observedAt?: number;
+	contextKey?: string;
 	players: PlayerIdentity[];
 	state: 'ready' | 'empty' | 'unavailable' | 'error';
 	coverage: 'unknown';
@@ -48,17 +53,24 @@ export type Metrics = {
 	memberSince: string | null;
 };
 export type Evidence = {
-	ruleId: 'recent-kd';
-	category: 'kd';
 	provider: 'leetify';
 	thresholdSource: 'plugin';
 	value: number;
 	threshold: number;
+} & ({
+	ruleId: 'recent-kd';
+	category: 'kd';
 	matches: number;
 	window: 'recent';
-};
+} | {
+	ruleId: 'high-aim';
+	category: 'aim';
+} | {
+	ruleId: 'low-ttd';
+	category: 'ttd';
+});
 export type Assessment = {
-	version: 'rules-v2-leetify';
+	version: 'rules-v4-leetify';
 	label: 'insufficient_data' | 'no_flags' | 'unusual';
 	evidence: Evidence[];
 };
