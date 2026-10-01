@@ -11,6 +11,11 @@ import { normalizeCoplay } from '../frontend/steam/roster';
 // Steam webpack is unavailable in jsdom. Replace only the native rendering boundary;
 // these tests exercise our panel behavior, not the look or discovery of Steam components.
 vi.mock('@steambrew/client', () => ({
+	classMapList: [
+		{ Toolbar: 'inactive-toolbar', ToolbarContainer: 'inactive-container', ToolbarButton: 'inactive-button' },
+		{ Toolbar: 'steam-toolbar', ToolbarContainer: 'steam-toolbar-container', ToolbarButton: 'steam-toolbar-button' },
+	],
+	IconsModule: { Search: () => <svg viewBox="0 0 24 24" /> },
 	showModal: vi.fn(),
 	ModalRoot: ({ children }: any) => <>{children}</>,
 	DialogHeader: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
@@ -265,4 +270,74 @@ it('shows compatibility failures in a native diagnostic and removes partial host
 	expect(document.head.querySelectorAll('style')).toHaveLength(styles);
 	expect(diagnostics.getSnapshot().join(' ')).toContain('Root unavailable');
 	stop();
+});
+
+function overlayRuntime() {
+	return {
+		overlayHosts: () => [{ key: 'cs2', appId: 730, window }],
+		readCoplay: async () => ({ currentUsers: [] }),
+		currentUserId: () => null,
+		onOverlayActive: () => () => {},
+		onAppExit: () => () => {},
+	};
+}
+function steamToolbar() {
+	const shell = document.createElement('div');
+	shell.className = 'steam-toolbar-container';
+	shell.innerHTML = '<div class="steam-toolbar"><button class="steam-toolbar-button">Settings</button><button class="steam-toolbar-button">Minimize</button></div>';
+	document.body.append(shell);
+	return shell.firstElementChild as HTMLElement;
+}
+it('places an accessible scan icon in the native toolbar and removes it on unload', async () => {
+	const toolbar = steamToolbar();
+	const runtime = overlayRuntime();
+	const onScan = vi.fn();
+	const styleCount = document.head.querySelectorAll('style').length;
+	let stop = () => {};
+	await act(async () => {
+		stop = startOverlayHosts(runtime, onScan);
+	});
+	try {
+		const scan = toolbar.querySelector<HTMLButtonElement>('button[aria-label="Scan players"]');
+		expect(scan).not.toBeNull();
+		expect(scan!.querySelector('svg')).not.toBeNull();
+		expect(scan!.textContent).toBe('');
+		expect(scan!.title).toBe('Scan players');
+		expect(scan!.classList.contains('steam-toolbar-button')).toBe(true);
+		expect(toolbar.lastElementChild!.textContent).toBe('Minimize');
+		await act(async () => scan!.click());
+		expect(onScan).toHaveBeenCalledExactlyOnceWith(runtime.overlayHosts()[0]);
+	} finally {
+		act(stop);
+	}
+	expect(document.querySelector('[data-cs2-tracker-button]')).toBeNull();
+	expect(toolbar.querySelectorAll('button')).toHaveLength(2);
+	expect(document.head.querySelectorAll('style')).toHaveLength(styleCount);
+});
+it('waits for Steam toolbar creation and reattaches once after toolbar replacement', async () => {
+	let stop = () => {};
+	await act(async () => {
+		stop = startOverlayHosts(overlayRuntime(), () => {});
+	});
+	try {
+		expect(document.querySelector('[data-cs2-tracker-button]')).toBeNull();
+		let toolbar: HTMLElement;
+		await act(async () => {
+			toolbar = steamToolbar();
+		});
+		const scan = document.querySelector('button[aria-label="Scan players"]');
+		expect(scan).not.toBeNull();
+		await act(async () => {
+			toolbar.parentElement!.remove();
+			toolbar = steamToolbar();
+		});
+		expect(toolbar!.contains(scan)).toBe(true);
+		expect(document.querySelectorAll('[data-cs2-tracker-button]')).toHaveLength(1);
+	} finally {
+		act(stop);
+	}
+	await act(async () => {
+		steamToolbar();
+	});
+	expect(document.querySelector('[data-cs2-tracker-button]')).toBeNull();
 });

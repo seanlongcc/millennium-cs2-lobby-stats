@@ -1,3 +1,5 @@
+.cs2-tracker-toolbar-slot { display: contents; }
+.cs2-tracker-scan-button.DialogButton { min-width: 0; padding: 0; flex-shrink: 0; }
 .cs2-tracker-report { width: min(1120px, calc(100vw - 80px)); max-height: calc(100vh - 80px); display: flex; flex-direction: column; gap: 8px; }
 .cs2-tracker-actions, .cs2-tracker-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .cs2-tracker-columns { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; min-height: 0; overflow: auto; }
