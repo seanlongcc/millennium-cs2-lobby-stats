@@ -94,9 +94,9 @@ Regression coverage includes truncated XML, wrong roots, disallowed document
 types and non-string games payloads.
 
 Final archive/install verification: all 24 installed files match the extracted
-release; all 22 Extendium files are unchanged. Backup of the first candidate:
-`C:\Program Files (x86)\Steam\millennium\backups\cs2-player-tracker-20260930-220143-789-2eb98ab2`.
-Archive SHA-256: `b5c50b120df97b5922a3b58aceb5a5175f79b8874248c4ba7433ec12a9d1a8e1`.
+release; all 22 Extendium files are unchanged. Backup before the Steam XML fix:
+`C:\Program Files (x86)\Steam\millennium\backups\cs2-player-tracker-20260930-221157-634-067230b9`.
+Archive SHA-256: `fea91a0c157289faea678b45c643dce3e64a56f79406cfc174b9f6c9563c80fe`.
 
 See [implementation record](implementation-record.md) for task evidence, review
 fixes, rulings and remaining limits.

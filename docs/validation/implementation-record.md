@@ -68,3 +68,11 @@ A concurrent task renamed the source project to CS2 Lobby Stats. This fix remain
 in that renamed source. To update the existing `cs2-player-tracker` installation
 without mixing identities or deploying a duplicate, its release was rebuilt in
 an isolated snapshot of commit `56fd2c9` plus this parser fix and its tests.
+
+Isolated release verification passed: both typechecks, production build, 88 TS
+tests, 14 Lua tests and syntax checks for all 11 Lua files. Reinstalled with
+backup `cs2-player-tracker-20260930-221157-634-067230b9`. All 24 installed files match the release,
+all 22 Extendium files are unchanged, and all 24 backup files match the prior
+validated release. The pre-update hash capture contained only Extendium files,
+so the retained previous release supplied the backup comparison.
+Updated archive SHA-256: `fea91a0c157289faea678b45c643dce3e64a56f79406cfc174b9f6c9563c80fe`. Steam was not restarted.
