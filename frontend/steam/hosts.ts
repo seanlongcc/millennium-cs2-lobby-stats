@@ -1,5 +1,5 @@
 import type { OverlayHost, SteamRuntime } from './runtime';
-export function reconcileOverlayHosts(runtime: SteamRuntime, mount: (host: OverlayHost) => () => void): () => void {
+export function reconcileOverlayHosts(runtime: SteamRuntime, mount: (host: OverlayHost) => () => void, onError: (message: string) => void = console.warn): () => void {
 	const mounted = new Map<string, { host: OverlayHost; dispose: () => void }>();
 	const reconcile = () => {
 		const hosts = runtime.overlayHosts();
@@ -14,7 +14,7 @@ export function reconcileOverlayHosts(runtime: SteamRuntime, mount: (host: Overl
 				try {
 					mounted.set(host.key, { host, dispose: mount(host) });
 				} catch (error) {
-					console.warn('[CS2 Player Tracker] Overlay component unavailable', error);
+					onError(`Overlay component unavailable: ${error instanceof Error ? error.message : 'unknown error'}`);
 				}
 			}
 	};

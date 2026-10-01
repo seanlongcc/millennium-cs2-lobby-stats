@@ -6,6 +6,8 @@ export interface SteamRuntime {
 	overlayHosts(): OverlayHost[];
 	onOverlayActive(cb: (active: boolean) => void): () => void;
 	onAppExit(cb: () => void): () => void;
+	compatibilityErrors?(): string[];
+	canRunReports?(): boolean;
 }
 // Steam's internal objects are unversioned. All dynamic access stays at this boundary.
 type Dynamic = Record<string, any>;
@@ -18,10 +20,21 @@ export function createSteamRuntime(globals: unknown): SteamRuntime {
 	let pending = false;
 	let lastProbe = 0;
 	const steam = () => object(g.SteamClient);
+	const registrationErrors = new Set<string>();
+	const lifecycleErrors = () => {
+		const errors = [...registrationErrors];
+		if (typeof object(steam().Overlay).RegisterForOverlayActivated !== 'function') errors.push('Steam overlay activation API unavailable.');
+		if (typeof object(steam().GameSessions).RegisterForAppLifetimeNotifications !== 'function') errors.push('Steam app lifecycle API unavailable.');
+		return errors;
+	};
 	const subscribe = (source: Dynamic, key: string, cb: (...args: any[]) => void) => {
-		if (typeof source[key] !== 'function') return () => {};
+		if (typeof source[key] !== 'function') {
+			registrationErrors.add(`Steam ${key} registration unavailable. Reload the plugin after updating Steam/Millennium.`);
+			return () => {};
+		}
 		try {
 			const token = source[key](cb);
+			if (typeof token?.unregister !== 'function') registrationErrors.add(`Steam ${key} registration returned an unsupported handle.`);
 			return () => {
 				try {
 					token?.unregister?.();
@@ -30,10 +43,18 @@ export function createSteamRuntime(globals: unknown): SteamRuntime {
 				}
 			};
 		} catch {
+			registrationErrors.add(`Steam ${key} registration failed. Reload the plugin after updating Steam/Millennium.`);
 			return () => {};
 		}
 	};
 	return {
+		canRunReports: () => lifecycleErrors().length === 0 && Array.isArray(object(object(g.Router).WindowStore).OverlayWindows),
+		compatibilityErrors() {
+			const errors = lifecycleErrors();
+			if (!Array.isArray(object(object(g.Router).WindowStore).OverlayWindows)) errors.push('Steam overlay windows API unavailable.');
+			if (typeof object(steam().Friends).GetCoplayData !== 'function') errors.push('Automatic roster unavailable. Add profile links manually.');
+			return errors;
+		},
 		readCoplay() {
 			const friends = object(steam().Friends);
 			if (typeof friends.GetCoplayData !== 'function') throw new Error('Automatic roster discovery is unavailable on this Steam version.');

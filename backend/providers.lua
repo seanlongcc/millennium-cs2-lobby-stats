@@ -652,7 +652,7 @@ local function get_faceit_profile(steamId)
     -- The public FACEIT endpoint can return a non-empty lifetime object without
     -- the summary fields we display. In that case, supplement the missing values
     -- from Faceit Finder instead of treating any non-empty object as complete.
-    if lifetime_matches == nil or lifetime_kd == nil then
+    if (lifetime_matches == nil or lifetime_kd == nil) and stats_status ~= 429 then
         local stats_url = "https://faceit-finder.com/id/" .. steamId .. "?lang=en"
         stats_response, html_error = http.get(stats_url, {
             headers = { ["Accept"] = "text/html" },

@@ -3,11 +3,23 @@ import type { SteamRuntime } from '../steam/runtime';
 import { captureRoster, emptyRoster, MAX_PLAYERS } from '../steam/roster';
 import { resolveManualRoster } from '../steam/manual-roster';
 import { assess, emptyMetrics } from './rules';
+import { ProviderRequestError } from './providers';
 type Result = ProviderResult<Partial<Metrics>>;
 const providers: Provider[] = ['leetify', 'faceit', 'steam'];
 const loading = (): Result => ({ status: 'loading', data: null, fetchedAt: null });
 const terminal = (status: Result['status'], message?: string): Result => ({ status, data: null, fetchedAt: null, message });
 type Job = { generation: number; provider: Provider; steamId: SteamId; timedOut?: boolean; timer?: ReturnType<typeof setTimeout> };
+type VanityJob = {
+	name: string;
+	generation: number;
+	signal: AbortSignal;
+	done: boolean;
+	timedOut: boolean;
+	timer?: ReturnType<typeof setTimeout>;
+	abort?: () => void;
+	resolve: (id: string) => void;
+	reject: (error: Error) => void;
+};
 export interface ReportController {
 	scan(): Promise<void>;
 	addProfiles(text: string): Promise<void>;
@@ -32,6 +44,9 @@ export function createReportController(deps: {
 	let account: SteamId | null = null;
 	let snapshot: ReportSnapshot = { id: 0, roster: emptyRoster(deps.now()), rows: [], state: 'idle' };
 	let queue: Job[] = [];
+	let vanityQueue: VanityJob[] = [];
+	let vanityRunning: VanityJob | null = null;
+	const manualBatches = new Set<AbortController>();
 	const running = new Map<string, Job>(),
 		cooldowns = new Map<Provider, number>();
 	const listeners = new Set<() => void>();
@@ -76,6 +91,9 @@ export function createReportController(deps: {
 		queue = [];
 		buffered = [];
 		for (const request of rosterReads) request.abort();
+		for (const batch of manualBatches) batch.abort();
+		for (const job of vanityQueue) finishVanity(job, new Error('Request canceled.'));
+		vanityQueue = [];
 	};
 	function cancelCells(state: ReportSnapshot['state'], message?: string, clear = false) {
 		clearQueue();
@@ -119,20 +137,91 @@ export function createReportController(deps: {
 		const complete = rows.every((row) => providers.every((p) => row.providers[p].status !== 'loading'));
 		set({ ...snapshot, rows, state: complete ? 'complete' : 'loading' });
 	}
+	function finishVanity(job: VanityJob, error?: Error, id?: string) {
+		if (job.done) return;
+		job.done = true;
+		clearTimeout(job.timer);
+		if (job.abort) job.signal.removeEventListener('abort', job.abort);
+		if (error) job.reject(error);
+		else job.resolve(id!);
+	}
+	function enqueueVanity(name: string, signal: AbortSignal): Promise<SteamId> {
+		return new Promise((resolve, reject) => {
+			const job: VanityJob = { name, signal, generation, resolve, reject, done: false, timedOut: false };
+			job.abort = () => {
+				job.timedOut = true;
+				finishVanity(job, new Error('Request canceled.'));
+			};
+			signal.addEventListener('abort', job.abort, { once: true });
+			job.timer = setTimeout(() => finishVanity(job, new Error('Backend queue timed out.')), 45000);
+			vanityQueue.push(job);
+			if (signal.aborted) job.abort();
+			pump();
+		});
+	}
+	function pumpVanity() {
+		while (vanityQueue.length) {
+			const job = vanityQueue[0];
+			if (job.done) {
+				vanityQueue.shift();
+				continue;
+			}
+			if (job.generation !== generation || job.signal.aborted) {
+				vanityQueue.shift();
+				finishVanity(job, new Error('Request canceled.'));
+				continue;
+			}
+			const cooldown = cooldowns.get('steam') ?? 0;
+			if (cooldown > deps.now()) {
+				vanityQueue.shift();
+				finishVanity(job, new ProviderRequestError('rate_limited', 'Steam cooldown active.', cooldown - deps.now()));
+				continue;
+			}
+			if (vanityRunning || running.size >= 2 || [...running.values()].some((j) => j.provider === 'steam')) return;
+			vanityQueue.shift();
+			vanityRunning = job;
+			clearTimeout(job.timer);
+			job.timer = setTimeout(() => {
+				job.timedOut = true;
+				finishVanity(job, new Error('Profile request timed out.'));
+				pump();
+			}, 10000);
+			Promise.resolve()
+				.then(() => {
+					if (job.done || job.signal.aborted || job.generation !== generation || disposed || !open || !active || !accountValid()) throw Error('Request canceled.');
+					return deps.resolveVanity(job.name);
+				})
+				.then((id) => finishVanity(job, undefined, id))
+				.catch((error) => {
+					if (error instanceof ProviderRequestError && error.status === 'rate_limited')
+						cooldowns.set('steam', Math.max(cooldowns.get('steam') ?? 0, deps.now() + (error.retryAfterMs ?? 60000)));
+					finishVanity(job, error instanceof Error ? error : new Error('Profile unavailable.'));
+				})
+				.finally(() => {
+					clearTimeout(job.timer);
+					if (vanityRunning === job) vanityRunning = null;
+					pump();
+				});
+			return;
+		}
+	}
 	function pump() {
-		if (disposed || !open || !active || !validated || !accountValid()) return;
+		if (disposed || !open || !active || !validated || !accountValid() || deps.runtime.canRunReports?.() === false) return;
+		pumpVanity();
 		const still: Job[] = [];
 		for (const job of queue) {
 			const cooldown = cooldowns.get(job.provider) ?? 0;
 			const blocked =
-				[...running.values()].some((j) => j.provider === job.provider && j.timedOut) || (running.size >= 2 && [...running.values()].every((j) => j.timedOut));
+				(job.provider === 'steam' && !!vanityRunning?.timedOut) ||
+				[...running.values()].some((j) => j.provider === job.provider && j.timedOut) ||
+				(running.size + Number(!!vanityRunning) >= 2 && [...running.values()].every((j) => j.timedOut) && (!vanityRunning || vanityRunning.timedOut));
 			if (cooldown > deps.now()) apply(job, { ...terminal('rate_limited', 'Provider cooldown active.'), retryAfterMs: cooldown - deps.now() });
 			else if (blocked) apply(job, terminal('error', 'Backend still responding. Refresh when it recovers.'));
 			else still.push(job);
 		}
 		queue = still;
-		while (running.size < 2) {
-			const index = queue.findIndex((j) => ![...running.values()].some((r) => r.provider === j.provider));
+		while (running.size + Number(!!vanityRunning) < 2) {
+			const index = queue.findIndex((j) => !(j.provider === 'steam' && vanityRunning) && ![...running.values()].some((r) => r.provider === j.provider));
 			if (index < 0) break;
 			const job = queue.splice(index, 1)[0],
 				key = `${job.provider}:${job.steamId}`;
@@ -206,18 +295,9 @@ export function createReportController(deps: {
 		pump();
 		polling();
 	}
-	let vanityPending = 0;
-	const resolveVanity = async (name: string) => {
-		if (vanityPending >= 2) throw Error('Profile resolver is still responding.');
-		vanityPending++;
-		try {
-			return await deps.resolveVanity(name);
-		} finally {
-			vanityPending--;
-		}
-	};
 	const offActive = deps.runtime.onOverlayActive((value) => {
 		active = value;
+		if (!value && manualBatches.size) cancelCells('canceled', 'Profile lookup canceled. Retry while the overlay is open.');
 		validated = false;
 		polling();
 		if (value) void checkRoster();
@@ -230,6 +310,10 @@ export function createReportController(deps: {
 	const controller: ReportController = {
 		async scan() {
 			if (disposed) return;
+			if (deps.runtime.canRunReports?.() === false) {
+				cancelCells('error', deps.runtime.compatibilityErrors?.().join(' ') || 'Steam overlay lifecycle unavailable.', true);
+				return;
+			}
 			clearQueue();
 			const token = generation;
 			open = true;
@@ -247,10 +331,21 @@ export function createReportController(deps: {
 		},
 		async addProfiles(text) {
 			if (disposed || !open) return;
+			if (!active || snapshot.state === 'stale' || deps.runtime.canRunReports?.() === false) {
+				set({ ...snapshot, inputErrors: ['Refresh the report in the active overlay before adding profiles.'] });
+				return;
+			}
 			cancelCells('canceled');
 			const token = generation,
 				original = snapshot.roster;
-			const resolved = await resolveManualRoster(text, resolveVanity);
+			const batch = new AbortController();
+			manualBatches.add(batch);
+			let resolved: Awaited<ReturnType<typeof resolveManualRoster>>;
+			try {
+				resolved = await resolveManualRoster(text, (name) => enqueueVanity(name, batch.signal), { signal: batch.signal, managedDeadline: true });
+			} finally {
+				manualBatches.delete(batch);
+			}
 			if (disposed || !open || generation !== token) return;
 			if (!accountValid()) {
 				cancelCells('stale', 'Steam account changed. Refresh report.', true);

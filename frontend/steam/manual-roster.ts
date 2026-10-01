@@ -38,22 +38,29 @@ export function parseManualRoster(text: string): { steamIds: SteamId[]; vanityNa
 	if (ids.size + names.size > MAX_PLAYERS) return { steamIds: [], vanityNames: [], errors: ['Report limit: 128 players.'] };
 	return { steamIds: [...ids], vanityNames: [...names.values()], errors };
 }
-export async function resolveManualRoster(text: string, resolveVanity: (name: string) => Promise<SteamId>): Promise<{ players: PlayerIdentity[]; errors: string[] }> {
+export async function resolveManualRoster(
+	text: string,
+	resolveVanity: (name: string) => Promise<SteamId>,
+	options: { signal?: AbortSignal; managedDeadline?: boolean } = {},
+): Promise<{ players: PlayerIdentity[]; errors: string[] }> {
 	const parsed = parseManualRoster(text),
 		ids = new Set(parsed.steamIds);
 	let index = 0;
 	let stopped = false;
 	await Promise.all(
 		[0, 1].map(async () => {
-			while (!stopped && index < parsed.vanityNames.length) {
+			while (!stopped && !options.signal?.aborted && index < parsed.vanityNames.length) {
 				const name = parsed.vanityNames[index++];
 				try {
-					const id = await withDeadline(resolveVanity(name), 10000);
+					const request = resolveVanity(name);
+					const id = await (options.managedDeadline ? request : withDeadline(request, 10000, options.signal));
+					if (options.signal?.aborted) break;
 					if (!validSteamId(id)) throw Error('Invalid SteamID.');
 					ids.add(id);
 				} catch (error) {
-					parsed.errors.push(`Could not resolve: ${name}`);
-					if (error instanceof Error && /timed out/.test(error.message)) stopped = true;
+					parsed.errors.push((error as { status?: string })?.status === 'rate_limited' ? `Steam rate limited: ${name}. Try later.` : `Could not resolve: ${name}`);
+					if (options.signal?.aborted || (error as { status?: string })?.status === 'rate_limited' || (error instanceof Error && /timed out/.test(error.message)))
+						stopped = true;
 				}
 			}
 		}),

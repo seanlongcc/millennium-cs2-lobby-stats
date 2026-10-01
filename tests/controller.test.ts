@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from 'vitest';
+import { ProviderRequestError } from '../frontend/report/providers';
 import { createReportController } from '../frontend/report/controller';
 import type { Metrics, Provider, ProviderResult } from '../shared/report';
 import type { SteamRuntime } from '../frontend/steam/runtime';
@@ -53,9 +54,13 @@ function harness(count = 3) {
 			jobs.push(job);
 		});
 	});
-	const controller = createReportController({ runtime, fetch, resolveVanity: async () => '76561197960265799', now: () => Date.now() });
+	let resolver: (name: string) => Promise<string> = async () => '76561197960265799';
+	const controller = createReportController({ runtime, fetch, resolveVanity: (name) => resolver(name), now: () => Date.now() });
 	cleanups.push(() => controller.dispose());
 	return {
+		resolveWith: (next: typeof resolver) => {
+			resolver = next;
+		},
 		controller,
 		jobs,
 		fetch,
@@ -227,4 +232,122 @@ it('removes an in-progress roster deadline when disposed before Steam answers', 
 	await flush();
 	h.controller.dispose();
 	expect(vi.getTimerCount()).toBe(0);
+});
+it.each(['close', 'dispose', 'cancel', 'hide', 'refresh', 'exit'] as const)('stops queued vanity IPC after %s', async (action) => {
+	const h = harness(0);
+	const raw: ((value: string) => void)[] = [];
+	const resolve = vi.fn(() => new Promise<string>((done) => raw.push(done)));
+	h.resolveWith(resolve);
+	await h.controller.scan();
+	const add = h.controller.addProfiles('https://steamcommunity.com/id/one https://steamcommunity.com/id/two https://steamcommunity.com/id/three');
+	await flush();
+	if (action === 'hide') h.activation(false);
+	else if (action === 'refresh') await h.controller.scan();
+	else if (action === 'exit') h.exit();
+	else h.controller[action]();
+	for (const done of raw) done('76561197960265790');
+	await add;
+	await flush();
+	expect(resolve.mock.calls.length).toBeLessThanOrEqual(2);
+	expect(h.controller.getSnapshot().rows).toHaveLength(0);
+});
+it('shares the two actual IPC slots and Steam lane between providers and vanity resolution', async () => {
+	const h = harness(1);
+	const raw: ((value: string) => void)[] = [];
+	const resolve = vi.fn(() => new Promise<string>((done) => raw.push(done)));
+	h.resolveWith(resolve);
+	await h.controller.scan();
+	const add = h.controller.addProfiles('https://steamcommunity.com/id/one');
+	await flush();
+	expect(resolve).not.toHaveBeenCalled();
+	h.jobs[0].resolve(ok());
+	await flush();
+	expect(resolve).toHaveBeenCalledTimes(1);
+	await h.controller.scan();
+	expect(h.jobs.filter((j) => !j.done).length + raw.length).toBe(2);
+	h.controller.close();
+	raw[0]('76561197960265790');
+	await add;
+	await flush();
+	expect(h.jobs).toHaveLength(2);
+});
+it('shares Steam cooldowns with vanity lookups and does not dispatch later names after a vanity 429', async () => {
+	const h = harness(0);
+	const resolve = vi.fn(async () => {
+		throw new ProviderRequestError('rate_limited', 'Steam rate limited.', 120000);
+	});
+	h.resolveWith(resolve);
+	await h.controller.scan();
+	await h.controller.addProfiles('https://steamcommunity.com/id/one https://steamcommunity.com/id/two https://steamcommunity.com/id/three');
+	expect(resolve).toHaveBeenCalledTimes(1);
+	await h.controller.addProfiles('[U:1:90]');
+	expect(h.controller.getSnapshot().rows[0].providers.steam.status).toBe('rate_limited');
+	await h.controller.addProfiles('https://steamcommunity.com/id/four');
+	expect(resolve).toHaveBeenCalledTimes(1);
+	await vi.advanceTimersByTimeAsync(130000);
+	expect(resolve).toHaveBeenCalledTimes(1);
+});
+it('requires refresh before manual additions to a known-stale roster', async () => {
+	const h = harness(1);
+	await h.controller.scan();
+	h.roster([2]);
+	await vi.advanceTimersByTimeAsync(5000);
+	expect(h.controller.getSnapshot().state).toBe('stale');
+	await h.controller.addProfiles('[U:1:99]');
+	expect(h.controller.getSnapshot().state).toBe('stale');
+	expect(h.controller.getSnapshot().inputErrors?.join(' ')).toMatch(/refresh/i);
+	expect(h.jobs).toHaveLength(2);
+});
+it('blocks lookup work when required Steam lifecycle support is missing', async () => {
+	const h = harness(1);
+	h.runtime.canRunReports = () => false;
+	h.runtime.compatibilityErrors = () => ['Overlay activation unavailable.'];
+	await h.controller.scan();
+	expect(h.jobs).toHaveLength(0);
+	expect(h.controller.getSnapshot().state).toBe('error');
+	expect(h.controller.getSnapshot().message).toMatch(/unavailable/i);
+});
+it('shares a report Steam 429 with subsequent manual profile lookups', async () => {
+	const h = harness(1);
+	const resolve = vi.fn(async () => '76561197960265790');
+	h.resolveWith(resolve);
+	await h.controller.scan();
+	h.jobs[0].resolve(ok());
+	await flush();
+	h.jobs.find((j) => j.provider === 'steam')!.resolve({ status: 'rate_limited', data: null, fetchedAt: null, retryAfterMs: 90000 });
+	await flush();
+	await h.controller.addProfiles('https://steamcommunity.com/id/one');
+	expect(resolve).not.toHaveBeenCalled();
+	expect(h.controller.getSnapshot().inputErrors?.join(' ')).toMatch(/rate limited/i);
+});
+it('removes manual deadlines on unload without releasing the actual request early', async () => {
+	const h = harness(0);
+	h.resolveWith(() => new Promise(() => {}));
+	await h.controller.scan();
+	const add = h.controller.addProfiles('https://steamcommunity.com/id/one https://steamcommunity.com/id/two');
+	await flush();
+	h.controller.dispose();
+	await add;
+	expect(vi.getTimerCount()).toBe(0);
+});
+it('finishes all queued cells when a hung vanity request and provider occupy both slots', async () => {
+	const h = harness(1);
+	let done!: (id: string) => void;
+	h.resolveWith(
+		() =>
+			new Promise((resolve) => {
+				done = resolve;
+			}),
+	);
+	await h.controller.scan();
+	const add = h.controller.addProfiles('https://steamcommunity.com/id/one');
+	h.jobs[0].resolve(ok());
+	await flush();
+	await vi.advanceTimersByTimeAsync(45000);
+	await add;
+	expect(h.controller.getSnapshot().state).toBe('complete');
+	expect(h.jobs).toHaveLength(2);
+	done('76561197960265790');
+	await flush();
+	expect(h.jobs).toHaveLength(2);
 });

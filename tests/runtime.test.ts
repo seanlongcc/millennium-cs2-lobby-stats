@@ -70,3 +70,36 @@ it('keeps Steam callbacks additive and unregisters them', () => {
 	off2();
 	expect(unregister).toHaveBeenCalledTimes(2);
 });
+it('exposes absent and failed lifecycle registrations as blocking diagnostics', () => {
+	const absent = createSteamRuntime({});
+	expect(absent.canRunReports?.()).toBe(false);
+	expect(absent.compatibilityErrors?.().join(' ')).toMatch(/overlay/i);
+	const failed = createSteamRuntime({
+		Router: { WindowStore: { OverlayWindows: [] } },
+		SteamClient: {
+			Overlay: {
+				RegisterForOverlayActivated: () => {
+					throw Error('Removed');
+				},
+			},
+			GameSessions: { RegisterForAppLifetimeNotifications: () => ({ unregister() {} }) },
+		},
+	});
+	failed.onOverlayActive(() => {});
+	expect(failed.canRunReports?.()).toBe(false);
+	expect(failed.compatibilityErrors?.().join(' ')).toMatch(/registration/i);
+});
+it('reports mounting failures through the visible diagnostic boundary', () => {
+	vi.useFakeTimers();
+	const runtime = createSteamRuntime({ Router: { WindowStore: { OverlayWindows: [{ BrowserWindow: window, params: { browserInfo: { m_unAppID: 730 } } }] } } });
+	const diagnostic = vi.fn();
+	const stop = reconcileOverlayHosts(
+		runtime,
+		() => {
+			throw Error('Native control missing');
+		},
+		diagnostic,
+	);
+	expect(diagnostic).toHaveBeenCalledWith(expect.stringMatching(/Native control missing/));
+	stop();
+});

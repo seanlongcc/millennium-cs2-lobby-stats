@@ -1,5 +1,9 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+vi.mock('react-dom/client', async (importOriginal) => {
+	const real = await importOriginal<typeof import('react-dom/client')>();
+	return { ...real, createRoot: vi.fn(real.createRoot) };
+});
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ReportSnapshot } from '../shared/report';
 import { emptyMetrics, assess } from '../frontend/report/rules';
@@ -7,6 +11,8 @@ import { normalizeCoplay } from '../frontend/steam/roster';
 // Steam webpack is unavailable in jsdom. Replace only the native rendering boundary;
 // these tests exercise our panel behavior, not the look or discovery of Steam components.
 vi.mock('@steambrew/client', () => ({
+	showModal: vi.fn(),
+	ModalRoot: ({ children }: any) => <>{children}</>,
 	DialogHeader: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
 	DialogSubHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 	DialogBody: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -38,8 +44,10 @@ vi.mock('@steambrew/client', () => ({
 	ProgressBar: ({ nProgress }: any) => <progress value={nProgress} max="100" />,
 	SteamSpinner: () => null,
 	Navigation: { NavigateToExternalWeb: vi.fn() },
-	constSysfsExpr: () => ({ content: 'badge' }),
+	constSysfsExpr: (name: string) => ({ content: name.endsWith('.css') ? '' : 'badge' }),
 }));
+import { CompatibilityNotice, createDiagnostics, nativeComponentErrors } from '../frontend/steam/compatibility';
+import { startOverlayHosts } from '../frontend/steam/overlay-host';
 import { ReportPanel } from '../frontend/report/ReportPanel';
 import { Navigation } from '@steambrew/client';
 import type { ReportController } from '../frontend/report/controller';
@@ -226,4 +234,35 @@ it('shows completion progress and supports arrow-key provider navigation', async
 	await act(async () => button('Leetify').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
 	expect(button('CSStats').getAttribute('aria-selected')).toBe('true');
 	expect(document.activeElement).toBe(button('CSStats'));
+});
+
+it('shows compatibility failures in a native diagnostic and removes partial host mounts', () => {
+	const diagnostics = createDiagnostics();
+	const el = document.createElement('div');
+	document.body.append(el);
+	root = createRoot(el);
+	act(() => root!.render(<CompatibilityNotice diagnostics={diagnostics} />));
+	act(() => diagnostics.set(['Overlay activation unavailable.']));
+	expect(document.body.textContent).toContain('Overlay activation unavailable.');
+	expect(nativeComponentErrors({}).join(' ')).toMatch(/DialogButtonSecondary/);
+	const runtime = {
+		overlayHosts: () => [{ key: 'cs2', appId: 730, window }],
+		readCoplay: async () => ({ currentUsers: [] }),
+		currentUserId: () => null,
+		onOverlayActive: () => () => {},
+		onAppExit: () => () => {},
+	};
+	const styles = document.head.querySelectorAll('style').length;
+	vi.mocked(createRoot).mockImplementationOnce(() => {
+		throw Error('Root unavailable');
+	});
+	const stop = startOverlayHosts(
+		runtime,
+		() => {},
+		(message) => diagnostics.set([message]),
+	);
+	expect(document.querySelector('[data-cs2-tracker-button]')).toBeNull();
+	expect(document.head.querySelectorAll('style')).toHaveLength(styles);
+	expect(diagnostics.getSnapshot().join(' ')).toContain('Root unavailable');
+	stop();
 });

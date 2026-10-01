@@ -55,3 +55,19 @@ it('does not launch replacements while timed-out vanity requests remain unresolv
 	expect((await pending).errors).toHaveLength(3);
 	vi.useRealTimers();
 });
+it('aborts vanity dispatch and deadline timers while unresolved requests retain their own lifetimes', async () => {
+	vi.useFakeTimers();
+	const abort = new AbortController();
+	const pendingResolvers: ((id: string) => void)[] = [];
+	const resolve = vi.fn(() => new Promise<string>((done) => pendingResolvers.push(done)));
+	const pending = resolveManualRoster('https://steamcommunity.com/id/one https://steamcommunity.com/id/two https://steamcommunity.com/id/three', resolve, {
+		signal: abort.signal,
+	});
+	abort.abort();
+	await pending;
+	expect(vi.getTimerCount()).toBe(0);
+	for (const done of pendingResolvers) done('76561197960265729');
+	await Promise.resolve();
+	expect(resolve).toHaveBeenCalledTimes(2);
+	vi.useRealTimers();
+});

@@ -18,7 +18,7 @@ Steam exports no plugin root registration container. It has no product content,
 controls, or cloned Steam styles. A `style` node supplies scoped layout only.
 An `img` inside a native source button displays the required Leetify attribution
 badge. The client 5.8.5 component catalog has no standalone image component;
-DialogButtonSecondary provides its action/focus behavior.
+DialogButtonSecondary provides its action/focus behavior. Compatibility diagnostics use a native text component; a plain paragraph is reserved for a Steam build where all three native text/container fallbacks are absent.
 
 The existing upstream Community card runs in the separate webkit context, where
 @steambrew/client React components are unavailable. Its existing HTML renderer and
@@ -26,7 +26,7 @@ CSS are preserved for that context only; they are not reused in the new report.
 
 ## Required live probe (not yet observed)
 
-- Installed Millennium and Steam versions.
+- Installed versions were observed below; native behavior still needs a live probe.
 - CS2 overlay host metadata/window association; button visibility and click.
 - Native component resolution, typography, theme, focus, Escape and unload cleanup.
 - GetCoplayData currentUsers/recentUsers shape and counts against visible human roster.
@@ -56,9 +56,9 @@ remain untested until a user-started session is available.
 
 ## Automated release evidence
 
-- 64 TypeScript/React tests passed, including real Windows PowerShell archive,
+- 82 TypeScript/React tests passed, including real Windows PowerShell archive,
   dry-run, replacement, backup and injected-rename-failure rollback tests.
-- 13 Lua behavioral tests passed; syntax is checked for every backend Lua file
+- 14 Lua behavioral tests passed; syntax is checked for every backend Lua file
   with pinned luaparse, in addition to the Lua 5.4 runtime checks.
 - Frontend and original webkit typechecks pass. Test typechecking uses the same
   ES2020 target; package test escaping was corrected to avoid ES2021-only methods.
@@ -73,7 +73,27 @@ is not available to jsdom. They do not establish actual theme/focus parity.
 
 The PowerShell installer installed the validated archive into
 `C:\Program Files (x86)\Steam\millennium\plugins\cs2-player-tracker`.
-No previous tracker directory existed, so no replacement backup was needed.
+The initial installation had no predecessor. The final review fixes replace that candidate with an automatic backup outside the active plugins directory.
 The installed package passed verification. Extendium's manifest SHA-256 was
 unchanged. Steam remained running; the plugin has not been enabled or observed
 inside a live CS2 overlay. Enable it in Millennium and restart Steam when ready.
+
+## Final review pass
+
+A fresh whole-branch reviewer identified five important issues. Regression tests
+first reproduced canceled vanity requests continuing, independent IPC/cooldown
+limits, stale roster reuse, FACEIT HTML fallback after a 429, and silent Steam
+compatibility failures. The fix pass covers each, including combined hung
+provider/vanity slots. Native API diagnostics are visible in plugin settings and
+the report; failed mounts remove partial DOM and styles.
+
+Deferred minor: malformed optional Steam games XML currently also hides otherwise
+valid profile name/member-since data. Other provider tabs remain independent.
+
+Final archive/install verification: all 24 installed files match the extracted
+release; all 22 Extendium files are unchanged. Backup of the first candidate:
+`C:\Program Files (x86)\Steam\millennium\backups\cs2-player-tracker-20260930-220143-789-2eb98ab2`.
+Archive SHA-256: `b5c50b120df97b5922a3b58aceb5a5175f79b8874248c4ba7433ec12a9d1a8e1`.
+
+See [implementation record](implementation-record.md) for task evidence, review
+fixes, rulings and remaining limits.

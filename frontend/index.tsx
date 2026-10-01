@@ -2,7 +2,9 @@ import { createReportController, type ReportController } from './report/controll
 import { fetchProvider, resolveVanity } from './report/ipc';
 import { ReportPanel } from './report/ReportPanel';
 import { createSteamRuntime } from './steam/runtime';
-import { startOverlayHosts } from './steam/overlay-host';
+import { startOverlayHosts, NativeBoundary } from './steam/overlay-host';
+import { CompatibilityNotice, createDiagnostics, nativeComponentErrors } from './steam/compatibility';
+import * as Native from '@steambrew/client';
 import { definePlugin, DialogBody, DialogBodyText, ModalRoot, Router, showModal, Field, IconsModule, TextField, ToggleField, usePluginConfig } from '@steambrew/client';
 
 const SettingsContent = () => {
@@ -58,6 +60,22 @@ const ReportContent = ({ controller, onClose }: { controller: ReportController; 
 export default definePlugin(() => {
 	const runtime = createSteamRuntime({ SteamClient, App: (window as any).App, Router });
 	const controller = createReportController({ runtime, fetch: fetchProvider, resolveVanity, now: Date.now });
+	const diagnostics = createDiagnostics();
+	let mountError = '';
+	const updateDiagnostics = () =>
+		diagnostics.set([
+			...(runtime.compatibilityErrors?.() ?? []),
+			...nativeComponentErrors(Native),
+			...(typeof showModal === 'function' ? [] : ['Steam modal API unavailable.']),
+			...(mountError ? [mountError] : []),
+		]);
+	updateDiagnostics();
+	const diagnosticTimer = setInterval(updateDiagnostics, 1000);
+	const reportError = (message: string) => {
+		mountError = message;
+		updateDiagnostics();
+		controller.close();
+	};
 	let modal: ReturnType<typeof showModal> | undefined;
 	const close = () => {
 		const previous = modal;
@@ -65,31 +83,48 @@ export default definePlugin(() => {
 		previous?.Close();
 		controller.close();
 	};
-	const stop = startOverlayHosts(runtime, (host) => {
-		close();
-		modal = showModal(
-			<ModalRoot onCancel={close} onEscKeypress={close} closeModal={close} bAllowFullSize>
-				<ReportContent controller={controller} onClose={close} />
-			</ModalRoot>,
-			host.window,
-			{
-				strTitle: 'CS2 Player Tracker',
-				bNeverPopOut: true,
-				fnOnClose: () => {
-					modal = undefined;
-					controller.close();
-				},
-			},
-		);
-		void controller.scan();
-	});
+	const stop = startOverlayHosts(
+		runtime,
+		(host) => {
+			close();
+			try {
+				modal = showModal(
+					<ModalRoot onCancel={close} onEscKeypress={close} closeModal={close} bAllowFullSize>
+						<CompatibilityNotice diagnostics={diagnostics} />
+						<NativeBoundary onError={reportError}>
+							<ReportContent controller={controller} onClose={close} />
+						</NativeBoundary>
+					</ModalRoot>,
+					host.window,
+					{
+						strTitle: 'CS2 Player Tracker',
+						bNeverPopOut: true,
+						fnOnClose: () => {
+							modal = undefined;
+							controller.close();
+						},
+					},
+				);
+				void controller.scan();
+			} catch (error) {
+				reportError(error instanceof Error ? error.message : 'Steam modal unavailable.');
+			}
+		},
+		reportError,
+	);
 	return {
 		title: 'CS2 Player Tracker',
 		icon: <IconsModule.Settings />,
-		content: <SettingsContent />,
+		content: (
+			<>
+				<CompatibilityNotice diagnostics={diagnostics} />
+				<NativeBoundary onError={reportError}>{nativeComponentErrors(Native).length === 0 && <SettingsContent />}</NativeBoundary>
+			</>
+		),
 		onDismount: () => {
 			close();
 			stop();
+			clearInterval(diagnosticTimer);
 			controller.dispose();
 		},
 	};

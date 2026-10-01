@@ -36,7 +36,9 @@ Paste SteamID64, `[U:1:accountid]`, `STEAM_0/1:X:Y`, or HTTPS Steam Community `/
 
 The only new setting is **Highlight unusual stats**. Existing Leetify API key and profile display settings remain available. No key is mandatory; the public providers may impose stricter anonymous rate limits.
 
-Two report IPC calls may be outstanding, at most one per provider. Requests time out, and 429 responses cause a provider cooldown without automatic retries. If a backend call remains unresponsive, its slot stays reserved until it returns; refresh after recovery. Reports are memory-only, with no telemetry, exported player database, game-memory access or automatic player reporting.
+Two IPC calls may be outstanding across report providers and manual profile resolution, at most one per provider. Manual profile resolution shares the Steam request slot and cooldown. Closing, canceling, refreshing, hiding the overlay or leaving CS2 cancels queued manual lookups. A stale roster must be refreshed before adding profiles. Requests time out, and 429 responses cause a provider cooldown without automatic retries. If a backend call remains unresponsive, its slot stays reserved until it returns; refresh after recovery. Reports are memory-only, with no telemetry, exported player database, game-memory access or automatic player reporting.
+
+If **Scan players** is absent, open the plugin settings for compatibility diagnostics. Missing overlay lifecycle support blocks scans. Missing roster discovery still allows manual profiles when the overlay lifecycle is available.
 
 ## Validation status
 

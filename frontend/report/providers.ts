@@ -1,3 +1,4 @@
+import { validSteamId } from '../steam/roster';
 import type { Metrics, Provider, ProviderResult, ProviderStatus } from '../../shared/report';
 type ObjectData = Record<string, unknown>;
 const object = (v: unknown): ObjectData => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as ObjectData) : {});
@@ -93,4 +94,26 @@ export function parseProviderResponse(provider: Provider, raw: string, now: numb
 	} catch {
 		return error;
 	}
+}
+
+export class ProviderRequestError extends Error {
+	constructor(
+		public status: ProviderStatus,
+		message: string,
+		public retryAfterMs?: number,
+	) {
+		super(message);
+		this.name = 'ProviderRequestError';
+	}
+}
+export function parseVanityResponse(raw: string, now: number): string {
+	let payload: Record<string, unknown>;
+	try {
+		payload = object(JSON.parse(raw));
+	} catch {
+		throw new ProviderRequestError('error', 'Invalid Steam response.');
+	}
+	if (payload.status === 'ok' && validSteamId(payload.steamId)) return payload.steamId;
+	const result = parseProviderResponse('steam', raw, now);
+	throw new ProviderRequestError(result.status === 'ok' ? 'error' : result.status, result.message ?? 'Could not resolve profile.', result.retryAfterMs);
 }

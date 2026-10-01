@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { parseProviderResponse } from '../frontend/report/providers';
+import { parseProviderResponse, parseVanityResponse, ProviderRequestError } from '../frontend/report/providers';
 import { envelope, faceitFixture, leetifyFixture, steamFixture } from './fixtures/providers';
 it('preserves Leetify units, negative ratings and literal player text without inventing benchmarks', () => {
 	const result = parseProviderResponse('leetify', leetifyFixture(), 0);
@@ -57,4 +57,15 @@ it('parses Steam XML as XML, never exposes private games as zero hours, and reje
 	expect(parseProviderResponse('steam', steamFixture('<gamesList><error>This profile is private</error></gamesList>'), 0).data?.cs2Hours).toBeNull();
 	expect(parseProviderResponse('steam', steamFixture('<gamesList><games>'), 0).status).toBe('error');
 	expect(parseProviderResponse('steam', envelope({ profile_xml: '<profile><privacyState>private</privacyState></profile>' }), 0).status).toBe('private');
+});
+
+it('keeps structured Steam rate-limit errors for the shared vanity coordinator', () => {
+	try {
+		parseVanityResponse(JSON.stringify({ status: 'rate_limited', retry_after: '120' }), 0);
+		throw Error('Expected a rate-limit failure');
+	} catch (error) {
+		expect(error).toBeInstanceOf(ProviderRequestError);
+		expect(error).toMatchObject({ status: 'rate_limited', retryAfterMs: 120000 });
+	}
+	expect(parseVanityResponse(JSON.stringify({ status: 'ok', steamId: '76561197960265729' }), 0)).toBe('76561197960265729');
 });
