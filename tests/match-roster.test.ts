@@ -92,6 +92,18 @@ it('does not repopulate a newly observed match with the previous match cohort', 
 	h.presence.set('game:state', 'game');
 	expect((await captureRoster(h.runtime, () => now + 2000)).players).toEqual([]);
 });
+it.each(['game:state', 'game:mode', 'game:server', 'game:map'])('recovers after a missing %s without treating it as a new match', async (field) => {
+	const h = harness();
+	const first = await captureRoster(h.runtime, () => now);
+	const previous = h.presence.get(field)!;
+	h.presence.delete(field);
+	expect(await captureRoster(h.runtime, () => now + 5000)).toMatchObject({ state: 'unavailable', players: [] });
+	h.presence.set(field, previous);
+	const refreshed = await captureRoster(h.runtime, () => now + 10000);
+	expect(refreshed.state).toBe('ready');
+	expect(refreshed.contextKey).toBe(first.contextKey);
+	expect(refreshed.players).toEqual(first.players);
+});
 it('validates recent entries, ignores other games and deduplicates without skewing the cohort', async () => {
 	const h = harness();
 	h.raw.recentUsers.push(h.raw.recentUsers[0], { appid: 440, accountid: 999, rtTimePlayed: now / 1000 }, { appid: 730, accountid: -1, rtTimePlayed: now / 1000 });

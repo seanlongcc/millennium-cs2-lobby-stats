@@ -76,6 +76,56 @@ function harness(count = 3) {
 		max: () => max,
 	};
 }
+it('loads players without provider work, including after polling and overlay resume', async () => {
+	const h = harness(2);
+	await h.controller.loadRoster();
+	expect(h.controller.getSnapshot().state).toBe('ready');
+	expect(h.controller.getSnapshot().rows).toHaveLength(2);
+	expect(h.controller.getSnapshot().rows.every(row => Object.values(row.providers).every(p => p.status === 'unscanned'))).toBe(true);
+	await vi.advanceTimersByTimeAsync(10000);
+	h.activation(false);
+	h.activation(true);
+	await flush();
+	expect(h.fetch).not.toHaveBeenCalled();
+});
+it('Scan All scans the displayed manual roster once without recapturing Steam players', async () => {
+	const h = harness(2);
+	await h.controller.loadRoster();
+	await h.controller.addProfiles('[U:1:90]', 'replace');
+	expect(h.fetch).not.toHaveBeenCalled();
+	const rosterReads = vi.mocked(h.runtime.readCoplay).mock.calls.length;
+	h.controller.scanAll();
+	h.controller.scanAll();
+	for (let i = 0; i < 6; i++) {
+		await flush();
+		for (const job of h.jobs.filter(j => !j.done)) job.resolve(ok());
+	}
+	await flush();
+	expect(h.jobs.map(j => [j.id, j.provider])).toEqual([
+		['76561197960265818', 'leetify'], ['76561197960265818', 'faceit'], ['76561197960265818', 'steam'],
+	]);
+	expect(h.runtime.readCoplay).toHaveBeenCalledTimes(rosterReads);
+	expect(h.controller.getSnapshot().state).toBe('complete');
+});
+it('does not scan an empty, stale, hidden or closed roster', async () => {
+	const h = harness(0);
+	await h.controller.loadRoster();
+	h.controller.scanAll();
+	h.roster([1]);
+	await h.controller.loadRoster();
+	h.activation(false);
+	h.controller.scanAll();
+	h.activation(true);
+	await flush();
+	h.roster([2]);
+	await vi.advanceTimersByTimeAsync(5000);
+	expect(h.controller.getSnapshot().state).toBe('stale');
+	h.controller.scanAll();
+	h.controller.close();
+	h.controller.scanAll();
+	await flush();
+	expect(h.fetch).not.toHaveBeenCalled();
+});
 it('caps actual outstanding work at two and one per provider through refresh and completion', async () => {
 	const h = harness();
 	await h.controller.scan();
@@ -245,7 +295,9 @@ it('never overlaps unresolved roster reads and removes deadlines on unload', asy
 	await flush();
 	await vi.advanceTimersByTimeAsync(5000);
 	await first;
-	await h.controller.scan();
+	const refresh = h.controller.scan();
+	await vi.advanceTimersByTimeAsync(5000);
+	await refresh;
 	expect(h.runtime.readCoplay).toHaveBeenCalledTimes(1);
 	expect(h.controller.getSnapshot().state).toBe('error');
 	h.controller.dispose();
@@ -307,6 +359,7 @@ it('shares Steam cooldowns with vanity lookups and does not dispatch later names
 	await h.controller.addProfiles('https://steamcommunity.com/id/one https://steamcommunity.com/id/two https://steamcommunity.com/id/three');
 	expect(resolve).toHaveBeenCalledTimes(1);
 	await h.controller.addProfiles('[U:1:90]');
+	h.controller.scanAll();
 	expect(h.controller.getSnapshot().rows[0].providers.steam.status).toBe('rate_limited');
 	await h.controller.addProfiles('https://steamcommunity.com/id/four');
 	expect(resolve).toHaveBeenCalledTimes(1);
@@ -371,6 +424,7 @@ it('finishes all queued cells when a hung vanity request and provider occupy bot
 	await flush();
 	await vi.advanceTimersByTimeAsync(45000);
 	await add;
+	h.controller.scanAll();
 	expect(h.controller.getSnapshot().state).toBe('complete');
 	expect(h.jobs).toHaveLength(2);
 	done('76561197960265790');
@@ -396,8 +450,10 @@ it('updates estimated match rosters while open and discards old-player responses
 	start++;
 	await vi.advanceTimersByTimeAsync(5000);
 	expect(controller.getSnapshot().rows[0].player.steamId).toBe('76561197960265928');
+	expect(controller.getSnapshot().state).toBe('ready');
 	h.jobs[0].resolve(ok({ name: 'Old match' }));
 	await flush();
+	expect(h.jobs).toHaveLength(2);
 	expect(controller.getSnapshot().rows.every(r => r.metrics.name !== 'Old match')).toBe(true);
 	expect(h.max()).toBe(2);
 	state = 'lobby';
@@ -416,6 +472,66 @@ it('does not interrupt initial capture when overlay activation arrives before co
 	await scan;
 	expect(h.controller.getSnapshot().rows.map(r => r.player.steamId)).toEqual(['76561197960265737']);
 	expect(h.controller.getSnapshot().state).not.toBe('stale');
+});
+it('refreshes successfully while the previous roster read is still pending', async () => {
+	const h = harness(1);
+	let resolve!: (value: unknown) => void;
+	h.runtime.readCoplay = vi.fn(() => new Promise(r => { resolve = r; }));
+	const first = h.controller.scan();
+	await flush();
+	const refresh = h.controller.scan();
+	await flush();
+	resolve({ currentUsers: [{ appid: 730, accountid: 9 }] });
+	await Promise.all([first, refresh]);
+	expect(h.controller.getSnapshot().rows.map(r => r.player.steamId)).toEqual(['76561197960265737']);
+	expect(h.controller.getSnapshot().state).toBe('loading');
+	expect(h.runtime.readCoplay).toHaveBeenCalledTimes(1);
+});
+it.each(['read error', 'incomplete cohort', 'missing presence'])('retains an estimated report through a temporary %s and resumes loading', async (failure) => {
+	const h = harness();
+	h.setUser('76561197960266228');
+	const data = { recentUsers: Array.from({ length: 9 }, (_, i) => ({ appid: 730, accountid: i + 100, rtTimePlayed: 1 })) };
+	let failing = false;
+	h.runtime.readCoplay = async () => {
+		if (failing && failure === 'read error') throw Error('Temporary Steam failure.');
+		return failing && failure === 'incomplete cohort' ? { recentUsers: data.recentUsers.slice(1) } : data;
+	};
+	h.runtime.matchContext = () => failing && failure === 'missing presence' ? null : ({ state: 'game', mode: 'competitive', server: 'kv', map: 'de_mirage', partyIds: ['76561197960266228'], partySize: 1, notBefore: 0, key: 'match' });
+	const controller = createReportController({ runtime: h.runtime, fetch: h.fetch, resolveVanity: async () => '', now: Date.now });
+	cleanups.push(() => controller.dispose());
+	await controller.scan();
+	const before = controller.getSnapshot();
+	failing = true;
+	await vi.advanceTimersByTimeAsync(5000);
+	expect(controller.getSnapshot().rows).toEqual(before.rows);
+	expect(controller.getSnapshot().id).toBe(before.id);
+	expect(controller.getSnapshot().message).toMatch(/retained|last|retry|check/i);
+	failing = false;
+	await vi.advanceTimersByTimeAsync(5000);
+	h.jobs[0].resolve(ok({ leetifyAim: 80 }));
+	await flush();
+	expect(controller.getSnapshot().id).toBe(before.id);
+	expect(controller.getSnapshot().rows[0].metrics.leetifyAim).toBe(80);
+	expect(controller.getSnapshot().message).toBeUndefined();
+});
+it('retains captured players when an explicit refresh fails and recovers on retry', async () => {
+	const h = harness(1);
+	await h.controller.scan();
+	h.jobs[0].resolve(ok({ leetifyAim: 80 }));
+	await flush();
+	const previous = h.controller.getSnapshot();
+	h.runtime.readCoplay = async () => { throw Error('Temporary Steam failure.'); };
+	await h.controller.scan();
+	const failed = h.controller.getSnapshot();
+	expect(failed.rows.map(r => r.player.steamId)).toEqual(['76561197960265729']);
+	expect(failed.roster).toEqual(previous.roster);
+	expect(failed.rows[0].metrics.leetifyAim).toBe(80);
+	expect(failed.state).toBe('error');
+	expect(failed.message).toMatch(/refresh|retained/i);
+	expect(Object.values(failed.rows[0].providers).every(p => p.status !== 'loading')).toBe(true);
+	h.runtime.readCoplay = async () => ({ currentUsers: [{ appid: 730, accountid: 9 }] });
+	await h.controller.scan();
+	expect(h.controller.getSnapshot().rows.map(r => r.player.steamId)).toEqual(['76561197960265737']);
 });
 it('refreshes only the requested player without recapturing the roster or replacing other rows', async () => {
 	const h = harness(2);

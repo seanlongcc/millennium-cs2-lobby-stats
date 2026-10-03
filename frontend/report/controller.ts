@@ -21,6 +21,8 @@ type VanityJob = {
 	reject: (error: Error) => void;
 };
 export interface ReportController {
+	loadRoster(): Promise<void>;
+	scanAll(): void;
 	scan(): Promise<void>;
 	refreshPlayer(steamId: SteamId): void;
 	addProfiles(text: string, mode?: 'append' | 'replace'): Promise<void>;
@@ -58,7 +60,8 @@ export function createReportController(deps: {
 	const readRuntime: SteamRuntime = {
 		...deps.runtime,
 		readCoplay: () => {
-			if (pendingRoster) return Promise.reject(Error('Roster request still pending.'));
+			// A refresh can supersede a poll without canceling Steam's actual request.
+			if (pendingRoster) return pendingRoster;
 			const request = Promise.resolve().then(() => deps.runtime.readCoplay());
 			pendingRoster = request;
 			void request
@@ -137,7 +140,8 @@ export function createReportController(deps: {
 			return { ...row, providers: updated, metrics, assessment: assess(metrics) };
 		});
 		const complete = rows.every((row) => providers.every((p) => row.providers[p].status !== 'loading'));
-		set({ ...snapshot, rows, state: complete ? 'complete' : 'loading' });
+		const unscanned = rows.some((row) => providers.some((p) => row.providers[p].status === 'unscanned'));
+		set({ ...snapshot, rows, state: complete ? (unscanned ? 'ready' : 'complete') : 'loading' });
 	}
 	function finishVanity(job: VanityJob, error?: Error, id?: string) {
 		if (job.done) return;
@@ -256,7 +260,7 @@ export function createReportController(deps: {
 			.join('|');
 	async function checkRoster() {
 		if (checking || !open || !active || disposed || snapshot.state === 'idle' || snapshot.state === 'stale') return;
-		// Activation can arrive while scan() is still capturing. Its result already
+		// Activation can arrive while the roster is still being captured. Its result already
 		// validates the account; a second read would cancel it as "still pending".
 		if (rosterReads.size) return;
 		if (!accountValid()) {
@@ -272,15 +276,19 @@ export function createReportController(deps: {
 			cancelCells('stale', 'Steam account changed. Refresh report.', true);
 			return;
 		}
-		// A recent-player estimate can move to the next match while the tab stays open.
-		// Clear old rows as soon as it becomes unavailable; keep polling for recovery.
+		// Failed detection is not evidence that the match ended. Retain the captured
+		// players and generation so pending stats survive until Steam recovers.
 		const estimated = snapshot.roster.source === 'steam_recent_estimate' || roster.source === 'steam_recent_estimate';
 		if (!manualOnly && estimated && snapshot.state !== 'canceled') {
-			if (signature(roster) !== signature(snapshot.roster) || roster.state !== snapshot.roster.state || roster.message !== snapshot.roster.message) {
+			if (roster.state === 'error' || roster.state === 'unavailable') {
+				set({ ...snapshot, message: `Last captured players retained; Steam roster check failed. ${roster.message ?? 'Retrying automatically.'}` });
+				return;
+			}
+			if (snapshot.state === 'error' || signature(roster) !== signature(snapshot.roster) || roster.state !== snapshot.roster.state || roster.message !== snapshot.roster.message) {
 				begin({ ...roster, source: roster.source ?? 'steam_recent_estimate' });
 				return;
 			}
-			if (roster.state === 'error' || roster.state === 'unavailable') return;
+			if (snapshot.message) set({ ...snapshot, message: undefined });
 		}
 		if (roster.state === 'error' || roster.state === 'unavailable' || signature(roster) !== signature(snapshot.roster)) {
 			validated = false;
@@ -297,18 +305,49 @@ export function createReportController(deps: {
 		clearInterval(poll);
 		if (open && active && !disposed) poll = setInterval(() => void checkRoster(), 5000);
 	}
-	function begin(roster: RosterSnapshot, inputErrors: string[] = []) {
+	function begin(roster: RosterSnapshot, inputErrors: string[] = [], scanStats = false) {
+		// Roster discovery and background updates must not initiate provider lookups.
 		clearQueue();
 		const token = generation;
 		validated = true;
 		const rows = roster.players.map((player) => {
 			const metrics = emptyMetrics();
-			return { player, metrics, assessment: assess(metrics), providers: { leetify: loading(), faceit: loading(), steam: loading() } };
+			const result = () => scanStats ? loading() : terminal('unscanned');
+			return { player, metrics, assessment: assess(metrics), providers: { leetify: result(), faceit: result(), steam: result() } };
 		});
-		set({ id: token, roster, rows, state: rows.length ? 'loading' : roster.state === 'error' ? 'error' : 'complete', inputErrors });
-		queue = rows.flatMap((row) => providers.map((provider) => ({ generation: token, provider, steamId: row.player.steamId })));
+		set({ id: token, roster, rows, state: rows.length ? (scanStats ? 'loading' : 'ready') : roster.state === 'error' ? 'error' : 'complete', inputErrors });
+		queue = scanStats ? rows.flatMap((row) => providers.map((provider) => ({ generation: token, provider, steamId: row.player.steamId }))) : [];
 		pump();
 		polling();
+	}
+	async function loadRoster(scanStats = false) {
+		if (disposed) return;
+		if (deps.runtime.canRunReports?.() === false) {
+			cancelCells('error', deps.runtime.compatibilityErrors?.().join(' ') || 'Steam overlay lifecycle unavailable.', true);
+			return;
+		}
+		const previous = open && accountValid() ? snapshot : undefined;
+		clearQueue();
+		const token = generation;
+		open = true;
+		manualOnly = false;
+		active = true;
+		validated = false;
+		account = deps.runtime.currentUserId();
+		set({ id: token, roster: emptyRoster(deps.now()), rows: [], state: 'loading' });
+		const roster = await readRoster();
+		if (disposed || !open || token !== generation) return;
+		if (!accountValid()) {
+			cancelCells('stale', 'Steam account changed. Refresh report.', true);
+			return;
+		}
+		if (previous?.rows.length && (roster.state === 'error' || roster.state === 'unavailable')) {
+			snapshot = { ...previous, id: token };
+			cancelCells('error', `Refresh failed; last captured players retained. ${roster.message ?? 'Retry when Steam recovers.'}`);
+			polling();
+			return;
+		}
+		begin(roster, [], scanStats);
 	}
 	const offActive = deps.runtime.onOverlayActive((value) => {
 		active = value;
@@ -323,6 +362,13 @@ export function createReportController(deps: {
 		polling();
 	});
 	const controller: ReportController = {
+		loadRoster: () => loadRoster(),
+		scan: () => loadRoster(true),
+		scanAll() {
+			if (disposed || !open || !active || !validated || !accountValid() || manualBatches.size ||
+				!snapshot.rows.length || snapshot.state === 'loading' || snapshot.state === 'stale' || deps.runtime.canRunReports?.() === false) return;
+			begin(snapshot.roster, snapshot.inputErrors, true);
+		},
 		refreshPlayer(steamId) {
 			if (disposed || !open || !active || !validated || !accountValid() || manualBatches.size || snapshot.state === 'stale' || deps.runtime.canRunReports?.() === false) return;
 			const row = snapshot.rows.find((entry) => entry.player.steamId === steamId);
@@ -340,28 +386,6 @@ export function createReportController(deps: {
 			});
 			queue.push(...providers.map((provider) => ({ generation, provider, steamId })));
 			pump();
-		},
-		async scan() {
-			if (disposed) return;
-			if (deps.runtime.canRunReports?.() === false) {
-				cancelCells('error', deps.runtime.compatibilityErrors?.().join(' ') || 'Steam overlay lifecycle unavailable.', true);
-				return;
-			}
-			clearQueue();
-			const token = generation;
-			open = true;
-			manualOnly = false;
-			active = true;
-			validated = false;
-			account = deps.runtime.currentUserId();
-			set({ id: token, roster: emptyRoster(deps.now()), rows: [], state: 'loading' });
-			const roster = await readRoster();
-			if (disposed || !open || token !== generation) return;
-			if (!accountValid()) {
-				cancelCells('stale', 'Steam account changed. Refresh report.', true);
-				return;
-			}
-			begin(roster);
 		},
 		async addProfiles(text, mode = 'append') {
 			if (disposed || !open) return;

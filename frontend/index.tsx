@@ -1,5 +1,6 @@
 import { createReportController } from './report/controller';
 import { createBrowserReport } from './report/browser';
+import { createReportHistory } from './report/history';
 import { fetchProvider, resolveVanity } from './report/ipc';
 import { createSteamRuntime } from './steam/runtime';
 import { startOverlayHosts, NativeBoundary } from './steam/overlay-host';
@@ -16,7 +17,7 @@ const SettingsContent = () => {
 
 	return (
 		<DialogBody>
-			<DialogBodyText>In CS2, open Shift+Tab and select Scan players.</DialogBodyText>
+			<DialogBodyText>In CS2, open Shift+Tab and select Scan players to load the player list, then select Scan All to fetch stats.</DialogBodyText>
 			<ToggleField label="Highlight unusual stats" checked={highlight ?? true} onChange={(value) => void setHighlight(value)} bottomSeparator="standard" />
 			<Field
 				label="Leetify API key"
@@ -62,6 +63,7 @@ export function reportBrowserRequest(token: string, action: string, input: strin
 export default definePlugin(() => {
 	const runtime = createSteamRuntime({ SteamClient, App: (window as any).App, Router, friendStore: (window as any).friendStore });
 	const controller = createReportController({ runtime, fetch: fetchProvider, resolveVanity, now: Date.now });
+	const history = createReportHistory({ storage: () => window.localStorage, currentUserId: runtime.currentUserId });
 	const diagnostics = createDiagnostics();
 	let mountError = '';
 	const updateDiagnostics = () => diagnostics.set([...(runtime.compatibilityErrors?.() ?? []), ...nativeComponentErrors(client), ...(mountError ? [mountError] : [])]);
@@ -79,7 +81,7 @@ export default definePlugin(() => {
 			highlightEnabled = value ?? true;
 		})
 		.catch(() => {});
-	browserReport = createBrowserReport({ runtime, controller, getUrl: getReportBrowserUrl, highlightEnabled: () => highlightEnabled });
+	browserReport = createBrowserReport({ runtime, controller, history, getUrl: getReportBrowserUrl, highlightEnabled: () => highlightEnabled });
 	const stop = startOverlayHosts(
 		runtime,
 		(host) => {

@@ -74,6 +74,9 @@ export function createSteamRuntime(globals: unknown): SteamRuntime {
 				if (self?.m_unGamePlayedAppID !== 730 || typeof rp?.get !== 'function') return null;
 				const read = (key: string) => typeof rp.get(key) === 'string' ? rp.get(key) as string : '';
 				const state = read('game:state'), mode = read('game:mode'), server = read('game:server'), map = read('game:map');
+				// Rich presence can briefly omit fields. Do not advance the match cutoff
+				// or fall back to frozen currentUsers on an incomplete competitive update.
+				if (!state || (state === 'game' && (!mode || (mode === 'competitive' && (!server || !map))))) return null;
 				const key = JSON.stringify([selfId, state, mode, server, map]);
 				const notBefore = lastMatch && lastMatch.key !== key ? lastMatch.at : lastMatch?.notBefore ?? 0;
 				lastMatch = { key, at: now, notBefore };

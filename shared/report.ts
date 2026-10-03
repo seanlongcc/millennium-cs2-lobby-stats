@@ -2,7 +2,7 @@ export type SteamId = string;
 export type Provider = 'leetify' | 'faceit' | 'steam';
 export type ProviderTab = Provider | 'csstats'; // CSStats is link-only, never queued.
 export type TeamGroup = 'your_team' | 'opponents' | 'spectators' | 'unknown' | 'free_for_all';
-export type ProviderStatus = 'loading' | 'ok' | 'not_found' | 'private' | 'unauthorized' | 'rate_limited' | 'error' | 'canceled';
+export type ProviderStatus = 'unscanned' | 'loading' | 'ok' | 'not_found' | 'private' | 'unauthorized' | 'rate_limited' | 'error' | 'canceled';
 export type PlayerIdentity = {
 	steamId: SteamId;
 	displayName?: string;
@@ -14,6 +14,7 @@ export type PlayerIdentity = {
 };
 export type RosterSnapshot = {
 	capturedAt: number;
+	map?: string;
 	source?: 'steam_current' | 'steam_recent_estimate';
 	observedAt?: number;
 	contextKey?: string;
@@ -86,5 +87,24 @@ export type ReportSnapshot = {
 	id: number;
 	roster: RosterSnapshot;
 	rows: ReportRow[];
-	state: 'idle' | 'loading' | 'complete' | 'canceled' | 'stale' | 'error';
+	state: 'idle' | 'ready' | 'loading' | 'complete' | 'canceled' | 'stale' | 'error';
+};
+export type SavedReport = { id: string; snapshot: ReportSnapshot };
+export type ReportHistorySummary = {
+	id: string;
+	capturedAt: number;
+	map?: string;
+	players: number;
+	names: string[];
+	flagged: number;
+	complete: boolean;
+};
+export type BrowserReportResponse = {
+	error?: string;
+	snapshot?: ReportSnapshot;
+	highlightEnabled: boolean;
+	view?: 'live' | 'history' | 'saved';
+	savedId?: string;
+	history?: ReportHistorySummary[];
+	historyError?: string;
 };

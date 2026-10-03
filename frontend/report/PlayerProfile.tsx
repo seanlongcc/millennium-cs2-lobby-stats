@@ -35,6 +35,7 @@ export function PlayerProfile({
 		valid = validSteamId(id);
 	const selected = providerTab === 'csstats' ? null : row.providers[providerTab];
 	const statuses = {
+		unscanned: 'Not scanned',
 		loading: 'Loading…',
 		not_found: 'No public data',
 		private: 'Private',
@@ -53,8 +54,8 @@ export function PlayerProfile({
 		<DialogControlsSection>
 			<DialogControlsSectionHeader>{m.name ?? id}</DialogControlsSectionHeader>
 			<Focusable className="cs2-tracker-actions">
-				<Source label="CSRep" url="https://csrep.gg/" />
-				<Source label="CSTracker" url="https://cstracker.gg/" />
+				<Source label="CSRep" url={`https://csrep.gg/player/${id}`} disabled={!valid} />
+				<Source label="CSTracker" url={`https://cstracker.gg/players/${id}`} disabled={!valid} />
 			</Focusable>
 			<Focusable role="tablist" aria-label="Stats provider" className="cs2-tracker-tabs">
 				{tabs.map((tab, i) => (

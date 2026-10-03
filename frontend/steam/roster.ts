@@ -50,7 +50,7 @@ export function normalizeMatchCoplay(raw: unknown, selfId: SteamId | null, now: 
 	if (!context || !validSteamId(selfId) || !context.state) return unavailable('Steam match presence unavailable. Retry or add profile links.');
 	if (context.state !== 'game') return { ...emptyRoster(now, 'empty', 'Steam does not report an active CS2 match.'), source: 'steam_recent_estimate' };
 	// Keep larger/community rosters on the original, explicitly unverified source.
-	if (context.mode !== 'competitive' || context.server !== 'kv') return { ...normalizeCoplay(raw, selfId, now), source: 'steam_current' };
+	if (context.mode !== 'competitive' || context.server !== 'kv') return { ...normalizeCoplay(raw, selfId, now), source: 'steam_current', map: context.map || undefined };
 	// Steam exposes rich presence for friends, not necessarily every party member.
 	// Non-friend party members can be in recentUsers; the union below must still be ten.
 	if (!context.map || !Number.isInteger(context.partySize) || context.partySize < 1 || context.partySize > 5 ||
@@ -78,6 +78,7 @@ export function normalizeMatchCoplay(raw: unknown, selfId: SteamId | null, now: 
 		source: 'steam_recent_estimate',
 		observedAt: latest * 1000,
 		contextKey: context.key,
+		map: context.map,
 		players: [...cohort.map(([id]) => id), ...context.partyIds].map(id => identity(id, id === selfId ? 'self' : 'steam')),
 		message: 'Estimated from Steam’s newest recent-player group and your party. Check against the scoreboard; Steam does not provide a match ID.',
 	};

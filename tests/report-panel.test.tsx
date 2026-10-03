@@ -102,6 +102,8 @@ function mount(count = 32) {
 			};
 		},
 		scan: vi.fn(async () => {}),
+		loadRoster: vi.fn(async () => {}),
+		scanAll: vi.fn(),
 		refreshPlayer: vi.fn(),
 		addProfiles: vi.fn(async () => {}),
 		cancel: vi.fn(),
@@ -175,18 +177,25 @@ it('keeps provider order and selection, preserves tab across players, resets it 
 	h.update({ ...h.snapshot(), id: 2 });
 	expect(button('Leetify').getAttribute('aria-selected')).toBe('true');
 });
-it('keeps fixed site actions across every tab and constructs CSStats only from validated IDs', async () => {
-	mount(1);
-	for (const tab of ['Leetify', 'CSStats', 'FACEIT', 'Steam']) {
-		await click(tab);
-		await click('CSRep');
-		await click('CSTracker');
+it('opens the selected player on CSRep and CSTracker across every provider tab', async () => {
+	const h = mount(2);
+	for (const [index, csrep, cstracker] of [
+		[0, 'https://csrep.gg/player/76561197960265729', 'https://cstracker.gg/players/76561197960265729'],
+		[1, 'https://csrep.gg/player/76561197960265730', 'https://cstracker.gg/players/76561197960265730'],
+	] as const) {
+		await act(async () => document.querySelectorAll<HTMLElement>('[data-cs2-player] button')[index].click());
+		for (const tab of ['Leetify', 'CSStats', 'FACEIT', 'Steam']) {
+			await click(tab);
+			await click('CSRep');
+			expect(Navigation.NavigateToExternalWeb).toHaveBeenLastCalledWith(csrep);
+			await click('CSTracker');
+			expect(Navigation.NavigateToExternalWeb).toHaveBeenLastCalledWith(cstracker);
+		}
 	}
-	expect(Navigation.NavigateToExternalWeb).toHaveBeenCalledWith('https://csrep.gg/');
-	expect(Navigation.NavigateToExternalWeb).toHaveBeenCalledWith('https://cstracker.gg/');
+	expect(h.controller.scan).not.toHaveBeenCalled();
 	await click('CSStats');
 	await click('View on CSStats');
-	expect(Navigation.NavigateToExternalWeb).toHaveBeenLastCalledWith('https://csstats.gg/player/76561197960265729');
+	expect(Navigation.NavigateToExternalWeb).toHaveBeenLastCalledWith('https://csstats.gg/player/76561197960265730');
 });
 it('discloses provenance on demand and toggles highlighting without changing metrics', async () => {
 	const h = mount(1);
@@ -208,9 +217,12 @@ it('preserves multiline pasted identities and routes actions to controller', asy
 	await act(async () => input.dispatchEvent(e));
 	await click('Add players');
 	expect(h.controller.addProfiles).toHaveBeenCalledWith('[U:1:10]\n[U:1:20]');
+	await click('Scan All');
+	expect(h.controller.scanAll).toHaveBeenCalledTimes(1);
 	await click('Refresh report');
 	expect(h.controller.scan).toHaveBeenCalledTimes(1);
 	h.update({ ...h.snapshot(), state: 'loading' });
+	expect(button('Scan All').disabled).toBe(true);
 	await click('Cancel');
 	expect(h.controller.cancel).toHaveBeenCalledTimes(1);
 });

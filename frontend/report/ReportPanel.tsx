@@ -53,8 +53,8 @@ export function ReportPanel({ controller, onClose, highlightEnabled }: { control
 	};
 	const auto = snapshot.roster.players.filter((p) => p.origin !== 'manual').length,
 		manual = snapshot.roster.players.length - auto;
-	const completed = snapshot.rows.filter((row) => Object.values(row.providers).every((p) => p.status !== 'loading')).length;
-	const failed = snapshot.rows.reduce((n, row) => n + Object.values(row.providers).filter((p) => !['ok', 'loading', 'canceled'].includes(p.status)).length, 0);
+	const completed = snapshot.rows.filter((row) => Object.values(row.providers).every((p) => !['unscanned', 'loading'].includes(p.status))).length;
+	const failed = snapshot.rows.reduce((n, row) => n + Object.values(row.providers).filter((p) => !['unscanned', 'ok', 'loading', 'canceled'].includes(p.status)).length, 0);
 	const selected = snapshot.rows.find((r) => r.player.steamId === selectedId) ?? snapshot.rows[0];
 	return (
 		<Focusable
@@ -71,7 +71,8 @@ export function ReportPanel({ controller, onClose, highlightEnabled }: { control
 			<DialogHeader>CS2 player report</DialogHeader>
 			<DialogSubHeader>{new Date(snapshot.roster.capturedAt).toLocaleTimeString()} · Historical stats</DialogSubHeader>
 			<Focusable className="cs2-tracker-actions">
-				<DialogButtonPrimary onClick={() => void controller.scan()}>Refresh report</DialogButtonPrimary>
+				<DialogButtonPrimary disabled={!snapshot.rows.length || snapshot.state === 'loading' || snapshot.state === 'stale' || busy} onClick={() => controller.scanAll()}>Scan All</DialogButtonPrimary>
+				<DialogButtonSecondary onClick={() => void controller.scan()}>Refresh report</DialogButtonSecondary>
 				<DialogButtonSecondary onClick={() => setAdding(!adding)}>Add profile links</DialogButtonSecondary>
 				{snapshot.state === 'loading' && <DialogButtonSecondary onClick={() => controller.cancel()}>Cancel</DialogButtonSecondary>}
 				<DialogButtonSecondary onClick={close}>Close</DialogButtonSecondary>
@@ -79,7 +80,7 @@ export function ReportPanel({ controller, onClose, highlightEnabled }: { control
 			<DialogBodyText>
 				{auto} detected by Steam{manual ? ` · ${manual} added manually` : ''} · Coverage unverified
 			</DialogBodyText>
-			<DialogBodyText role="status">{snapshot.message ?? `${completed}/${snapshot.rows.length} ready${failed ? ` · ${failed} unavailable` : ''}`}</DialogBodyText>
+			<DialogBodyText role="status">{snapshot.message ?? (snapshot.state === 'ready' ? 'Players loaded. Select Scan All to fetch stats.' : `${completed}/${snapshot.rows.length} ready${failed ? ` · ${failed} unavailable` : ''}`)}</DialogBodyText>
 			{snapshot.state === 'loading' && <ProgressBar nProgress={snapshot.rows.length ? (completed / snapshot.rows.length) * 100 : 0} />}
 			{adding && (
 				<Focusable className="cs2-tracker-manual">

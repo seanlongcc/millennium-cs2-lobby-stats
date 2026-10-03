@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 const transport = vi.hoisted(() => vi.fn());
 vi.mock('@steambrew/webkit', () => ({ callable: () => transport }));
 import { mountBrowserReport } from '../webkit/report';
-import { renderBrowserReport } from '../webkit/report-view';
+import { providerTabs, renderBrowserReport } from '../webkit/report-view';
 import { emptyMetrics, assess } from '../frontend/report/rules';
 import { normalizeCoplay } from '../frontend/steam/roster';
 import type { ReportSnapshot } from '../shared/report';
@@ -62,6 +62,52 @@ it('renders mockup roster columns and inspector, escaping names and keeping metr
 	expect(document.body.textContent).not.toContain('95%');
 	expect([...document.querySelectorAll('[role=tab]')].map((el) => el.textContent)).toEqual(['Leetify', 'CSStats', 'FACEIT', 'Steam']);
 	expect(document.body.textContent).toContain('may include players from previous matches');
+});
+it('shows waiting players and sends Scan All only on click, preventing duplicate clicks', async () => {
+	vi.useFakeTimers();
+	const root = document.createElement('main');
+	document.body.append(root);
+	const current = snapshot();
+	current.state = 'ready';
+	current.rows[0].metrics = emptyMetrics();
+	current.rows[0].assessment = assess(current.rows[0].metrics);
+	for (const provider of Object.values(current.rows[0].providers)) {
+		provider.status = 'unscanned';
+		provider.data = null;
+		provider.fetchedAt = null;
+	}
+	const rpc = vi.fn(async ({ action }: { token: string; action: string; input: string }) => {
+		if (action === 'scan-all') {
+			current.state = 'loading';
+			for (const provider of Object.values(current.rows[0].providers)) provider.status = 'loading';
+		}
+		return JSON.stringify({ snapshot: current, highlightEnabled: true });
+	});
+	const stop = mountBrowserReport(root, 'token', 'badge', rpc);
+	try {
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(root.querySelectorAll('tbody tr[data-player]')).toHaveLength(1);
+		expect(root.textContent).toContain('Not scanned');
+		expect(root.querySelector('.progress-line')?.textContent).toContain('Select Scan All');
+		expect(root.querySelector('progress')).toBeNull();
+		expect(rpc.mock.calls.every(([args]) => args.action === 'snapshot')).toBe(true);
+		const scan = root.querySelector<HTMLButtonElement>('[data-action=scan-all]');
+		expect(scan?.textContent).toBe('Scan All');
+		scan!.click();
+		scan!.click();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(rpc.mock.calls.filter(([args]) => args.action === 'scan-all')).toHaveLength(1);
+		expect(root.querySelector<HTMLButtonElement>('[data-action=scan-all]')?.disabled).toBe(true);
+	} finally { stop(); }
+});
+it.each(['stale', 'loading', 'empty', 'saved'] as const)('prevents Scan All for a %s report', kind => {
+	const current = snapshot();
+	if (kind === 'empty') { current.rows = []; current.roster.players = []; }
+	else if (kind !== 'saved') current.state = kind;
+	document.body.innerHTML = renderBrowserReport(current, { selectedId: null, tab: 'leetify', details: false }, true, 'badge', { saved: kind === 'saved' });
+	const scan = document.querySelector<HTMLButtonElement>('[data-action=scan-all]');
+	if (kind === 'saved') expect(scan).toBeNull();
+	else expect(scan?.disabled).toBe(true);
 });
 it('renders safe Steam avatars in both roster and inspector, retaining initials for unavailable images', () => {
 	const current = snapshot();
@@ -140,11 +186,23 @@ it('closes only profile input using X or Escape, restores focus and retains the 
 		expect(root.querySelector('.roster-table')).not.toBeNull();
 	} finally { stop(); }
 });
-it('shows unavailable providers inside their own tab and keeps all site links usable', () => {
-	document.body.innerHTML = renderBrowserReport(snapshot(), { selectedId: null, tab: 'faceit', details: false }, true, 'badge');
+it('keeps links on the selected player across tabs, including unavailable providers', () => {
+	const current = snapshot();
+	const secondPlayer = { ...current.rows[0].player, steamId: '76561197960265730' };
+	current.roster.players.push(secondPlayer);
+	current.rows.push({ ...current.rows[0], player: secondPlayer });
+	for (const [selectedId, csrep, cstracker] of [
+		['76561197960265729', 'https://csrep.gg/player/76561197960265729', 'https://cstracker.gg/players/76561197960265729'],
+		['76561197960265730', 'https://csrep.gg/player/76561197960265730', 'https://cstracker.gg/players/76561197960265730'],
+	]) {
+		for (const tab of providerTabs) {
+			document.body.innerHTML = renderBrowserReport(current, { selectedId, tab, details: false }, true, 'badge');
+			expect([...document.querySelectorAll('.external-links a')].map((link) => link.getAttribute('href'))).toEqual([csrep, cstracker]);
+		}
+	}
+	document.body.innerHTML = renderBrowserReport(current, { selectedId: null, tab: 'faceit', details: false }, true, 'badge');
 	expect(document.querySelector('[role=tabpanel]')!.textContent).toContain('Private');
-	expect(document.querySelector('a[href="https://csrep.gg/"]')).not.toBeNull();
-	document.body.innerHTML = renderBrowserReport(snapshot(), { selectedId: null, tab: 'csstats', details: false }, false, 'badge');
+	document.body.innerHTML = renderBrowserReport(current, { selectedId: null, tab: 'csstats', details: false }, false, 'badge');
 	expect(document.querySelector('a[href="https://csstats.gg/player/76561197960265729"]')).not.toBeNull();
 	expect(document.querySelector('.hot')).toBeNull();
 });
@@ -253,5 +311,50 @@ it('refreshes a row without selecting it or resetting the provider tab, and disa
 		current.state = 'stale';
 		await vi.advanceTimersByTimeAsync(1000);
 		expect([...root.querySelectorAll<HTMLButtonElement>('[data-refresh-player]')].every(b => b.disabled)).toBe(true);
+	} finally { stop(); }
+});
+it('opens saved reports read-only, returns to live view, and confirms clearing history', async () => {
+	vi.useFakeTimers();
+	const root = document.createElement('main');
+	document.body.append(root);
+	const current = snapshot(), saved = snapshot();
+	saved.rows[0].player.displayName = 'Past player';
+	let view = 'live';
+	let reports = [{ id: 'saved-one', capturedAt: 1000, map: 'de_mirage', players: 1, names: ['Past player'], flagged: 1, complete: true }];
+	const rpc = vi.fn(async ({ action }: { action: string }) => {
+		if (action === 'history') view = 'history';
+		if (action === 'history-open') view = 'saved';
+		if (action === 'history-live') view = 'live';
+		if (action === 'history-clear') { reports = []; view = 'history'; }
+		return JSON.stringify({ snapshot: view === 'saved' ? saved : current, highlightEnabled: true, view, savedId: view === 'saved' ? 'saved-one' : undefined, history: reports });
+	});
+	const stop = mountBrowserReport(root, 'token', 'badge', rpc);
+	try {
+		await vi.advanceTimersByTimeAsync(0);
+		root.querySelector<HTMLButtonElement>('[data-tab=faceit]')!.click();
+		root.querySelector<HTMLButtonElement>('[data-action=history]')!.click();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(root.textContent).toContain('Report history');
+		expect(root.textContent).toContain('de_mirage');
+		root.querySelector<HTMLButtonElement>('[data-history-open]')!.click();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(root.textContent).toContain('Past player');
+		expect(root.querySelector('[data-action=refresh]')).toBeNull();
+		expect(root.querySelector('[data-refresh-player]')).toBeNull();
+		expect(root.querySelector('[data-action=add-toggle]')).toBeNull();
+		root.querySelector<HTMLButtonElement>('[data-tab=steam]')!.click();
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(root.querySelector('[data-tab=steam]')?.getAttribute('aria-selected')).toBe('true');
+		root.querySelector<HTMLButtonElement>('[data-action=history-live]')!.click();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(root.querySelector('[data-action=refresh]')).not.toBeNull();
+		expect(root.querySelector('[data-tab=faceit]')?.getAttribute('aria-selected')).toBe('true');
+		root.querySelector<HTMLButtonElement>('[data-action=history]')!.click();
+		await vi.advanceTimersByTimeAsync(0);
+		root.querySelector<HTMLButtonElement>('[data-action=history-clear-ask]')!.click();
+		expect(rpc.mock.calls.some(([r]) => r.action === 'history-clear')).toBe(false);
+		root.querySelector<HTMLButtonElement>('[data-action=history-clear]')!.click();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(root.textContent).toContain('No saved reports');
 	} finally { stop(); }
 });

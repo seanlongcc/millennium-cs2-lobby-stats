@@ -1,6 +1,6 @@
 import { callable } from '@steambrew/webkit';
-import type { ReportSnapshot } from '../shared/report';
-import { escapeHtml, providerTabs, renderBrowserReport, type ReportViewState } from './report-view';
+import type { BrowserReportResponse, ReportSnapshot } from '../shared/report';
+import { escapeHtml, providerTabs, renderBrowserReport, renderReportHistory, type ReportViewState } from './report-view';
 
 // Lua receives object values in sorted-key order. Use an array for positional arguments.
 const requestBackend = callable<[[token: string, action: string, input: string]], string>('report_browser_request');
@@ -13,7 +13,11 @@ export function isReportPage(location: Location) {
 export function mountBrowserReport(root: HTMLElement, token: string, badge: string, rpc = request) {
 	const doc = root.ownerDocument,
 		win = doc.defaultView!;
-	const state: ReportViewState = { selectedId: null, tab: 'leetify', details: false };
+	const liveState: ReportViewState = { selectedId: null, tab: 'leetify', details: false };
+	let savedState: ReportViewState = { ...liveState }, state = liveState;
+	let response: BrowserReportResponse | undefined;
+	let liveId: number | undefined, savedId: string | undefined;
+	let confirmClear = false;
 	let snapshot: ReportSnapshot | undefined,
 		highlight = true,
 		lastResponse = '',
@@ -36,9 +40,11 @@ export function mountBrowserReport(root: HTMLElement, token: string, badge: stri
 	const render = () => {
 		if (!snapshot) return;
 		const focused = doc.activeElement as HTMLElement | null;
-		const focusKey = focused && ['action', 'tab', 'select', 'refresh-player'].find((key) => focused.getAttribute(`data-${key}`));
+		const focusKey = focused && ['action', 'tab', 'select', 'refresh-player', 'history-open', 'history-delete'].find((key) => focused.getAttribute(`data-${key}`));
 		const focusValue = focusKey ? focused!.getAttribute(`data-${focusKey}`) : null;
-		view.innerHTML = renderBrowserReport(snapshot, state, highlight, badge);
+		view.innerHTML = response?.view === 'history'
+			? renderReportHistory(response.history ?? [], highlight, response.historyError, confirmClear)
+			: renderBrowserReport(snapshot, state, highlight, badge, { saved: response?.view === 'saved', historyError: response?.historyError });
 		for (const image of view.querySelectorAll<HTMLImageElement>('.avatar img')) if (failedAvatars.has(image.src)) image.remove();
 		if (focusKey && focusValue) view.querySelector<HTMLElement>(`[data-${focusKey}="${focusValue}"]`)?.focus({ preventScroll: true });
 	};
@@ -62,21 +68,27 @@ export function mountBrowserReport(root: HTMLElement, token: string, badge: stri
 		try {
 			const raw = await rpc({ token, action, input });
 			if (stopped) return;
-			const result = JSON.parse(raw) as { error?: string; snapshot?: ReportSnapshot; highlightEnabled: boolean };
+			const result = JSON.parse(raw) as BrowserReportResponse;
 			if (result.error || !result.snapshot) {
 				stopped = true;
 				form.hidden = true;
 				view.innerHTML = `<div class="empty"><h1>Report unavailable</h1><p role="alert">${escapeHtml(result.error ?? 'Select Scan players again.')}</p></div>`;
 				return;
 			}
-			if (snapshot?.id !== result.snapshot.id) {
-				state.tab = 'leetify';
-				state.selectedId = null;
-				state.details = false;
+			if (result.view === 'saved') {
+				if (savedId !== result.savedId) savedState = { selectedId: null, tab: 'leetify', details: false };
+				savedId = result.savedId;
+				state = savedState;
+			} else if (!result.view || result.view === 'live') {
+				if (liveId !== result.snapshot.id) Object.assign(liveState, { selectedId: null, tab: 'leetify', details: false });
+				liveId = result.snapshot.id;
+				state = liveState;
 			}
+			if (result.view === 'history' || result.view === 'saved') form.hidden = true;
+			response = result;
 			snapshot = result.snapshot;
 			highlight = result.highlightEnabled;
-			if (raw !== lastResponse || action === 'refresh-player') {
+			if (raw !== lastResponse || action === 'refresh-player' || action === 'scan-all') {
 				lastResponse = raw;
 				render();
 			}
@@ -94,6 +106,13 @@ export function mountBrowserReport(root: HTMLElement, token: string, badge: stri
 	};
 	const click = (event: MouseEvent) => {
 		const target = event.target as HTMLElement;
+		const historyOpen = target.closest<HTMLElement>('[data-history-open]')?.dataset.historyOpen;
+		const historyDelete = target.closest<HTMLElement>('[data-history-delete]')?.dataset.historyDelete;
+		if (historyOpen || historyDelete) {
+			confirmClear = false;
+			void send(historyOpen ? 'history-open' : 'history-delete', historyOpen ?? historyDelete!);
+			return;
+		}
 		const refresh = target.closest<HTMLButtonElement>('[data-refresh-player]');
 		if (refresh) {
 			if (!refresh.disabled) {
@@ -115,8 +134,13 @@ export function mountBrowserReport(root: HTMLElement, token: string, badge: stri
 			render();
 			return;
 		}
-		const action = target.closest<HTMLElement>('[data-action]')?.dataset.action;
-		if (action === 'close') close();
+		const actionButton = target.closest<HTMLButtonElement>('[data-action]');
+		if (actionButton?.disabled) return;
+		const action = actionButton?.dataset.action;
+		if (action === 'scan-all') {
+			actionButton!.disabled = true;
+			void send(action);
+		} else if (action === 'close') close();
 		else if (action === 'add-close') closeInput();
 		else if (action === 'details') {
 			state.details = !state.details;
@@ -124,12 +148,21 @@ export function mountBrowserReport(root: HTMLElement, token: string, badge: stri
 		} else if (action === 'add-toggle') {
 			form.hidden = !form.hidden;
 			if (!form.hidden) form.querySelector('textarea')!.focus();
+		} else if (action === 'history-clear-ask' || action === 'history-clear-cancel') {
+			confirmClear = action === 'history-clear-ask';
+			render();
+		} else if (action === 'history' || action === 'history-live' || action === 'history-clear') {
+			confirmClear = false;
+			void send(action);
 		} else if (action === 'refresh' || action === 'cancel') void send(action);
 	};
 	const keydown = (event: KeyboardEvent) => {
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			if (!form.hidden) closeInput();
+			else if (confirmClear) { confirmClear = false; render(); }
+			else if (response?.view === 'saved') void send('history');
+			else if (response?.view === 'history') void send('history-live');
 			else close();
 			return;
 		}

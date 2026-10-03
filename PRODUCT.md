@@ -27,7 +27,7 @@ Avoid cheat-detector theatrics, unsupported risk percentages, security dashboard
 3. Distinguish unknown data from ordinary data; never infer full roster coverage.
 4. Use Steam's actual React components from `@steambrew/client` (or `millennium` for Starlight), preserving their appearance, interaction states, and the route back to the game. Plain HTML is permitted only when Steam has no suitable component, with the missing component documented.
 5. Make historical statistics and sample/mock data explicit.
-6. Lead with Leetify Rating, Aim, Time to Damage (ms), and recent K/D; give each provider its own profile tab. Keep FACEIT secondary and CSStats external-only until supported import is verified. Provide persistent CSRep and CSTracker site links; CSRep API contracts remain unverified.
+6. Lead with Leetify Rating, Aim, Time to Damage (ms), and recent K/D; give each provider its own profile tab. Keep FACEIT secondary and CSStats external-only until supported import is verified. Provide persistent CSRep and CSTracker links to the selected player's profile using a validated SteamID64; CSRep API contracts remain unverified.
 7. Use Leetify benchmark comparisons only with verified cohort/cutoff data. Never present performance bands as cheating thresholds or Aim as a percentile.
 8. Split verified current teams; show unknown assignments and free-for-all honestly. The inspected Steam roster interface does not expose teams.
 
